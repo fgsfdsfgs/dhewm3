@@ -386,12 +386,12 @@ SOURCEFILES_CPP	:=\
 	$(SRC_UI) \
 	$(SRC_TOOLS) \
 	$(SRC_IDLIB) \
-	$(SRC_OPENAL_STUB) \
 	$(SRC_GAME)
 
 SOURCEFILES_C	:=\
 	framework/minizip/cached_stdio.c \
 	framework/minizip/ioapi_cached.c \
+	$(SRC_OPENAL) \
 	$(SRC_GLAD)
 
 #---------------------------------------------------------------------------------
