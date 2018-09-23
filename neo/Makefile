@@ -1,0 +1,535 @@
+#---------------------------------------------------------------------------------
+.SUFFIXES:
+#---------------------------------------------------------------------------------
+
+ifeq ($(strip $(DEVKITPRO)),)
+$(error "Please set DEVKITPRO in your environment. export DEVKITPRO=<path to>/devkitpro")
+endif
+
+TOPDIR ?= $(CURDIR)
+include $(DEVKITPRO)/libnx/switch_rules
+
+#---------------------------------------------------------------------------------
+# TARGET is the name of the output
+# BUILD is the directory where object files & intermediate files will be placed
+# SOURCES is a list of directories containing source code
+# DATA is a list of directories containing data files
+# INCLUDES is a list of directories containing header files
+# EXEFS_SRC is the optional input directory containing data copied into exefs, if anything this normally should only contain "main.npdm".
+# ROMFS is the directory containing data to be added to RomFS, relative to the Makefile (Optional)
+#
+# NO_ICON: if set to anything, do not use icon.
+# NO_NACP: if set to anything, no .nacp file is generated.
+# APP_TITLE is the name of the app stored in the .nacp file (Optional)
+# APP_AUTHOR is the author of the app stored in the .nacp file (Optional)
+# APP_VERSION is the version of the app stored in the .nacp file (Optional)
+# APP_TITLEID is the titleID of the app stored in the .nacp file (Optional)
+# ICON is the filename of the icon (.jpg), relative to the project folder.
+#   If not set, it attempts to use one of the following (in this order):
+#     - <Project name>.jpg
+#     - icon.jpg
+#     - <libnx folder>/default_icon.jpg
+#---------------------------------------------------------------------------------
+APP_TITLE	:=	dhewm3-nx
+APP_AUTHOR	:=	fgsfds
+APP_VERSION	:=	0.1.0
+
+TARGET		:=	dhewm3nx
+BUILD		:=	build
+SOURCES		:=
+DATA		:=	data
+INCLUDES	:=	
+DEFINES		+=	-DCORE=ON -DSDL2=ON -DBASE=ON -DUSE_FILE32API -DUSE_LIBC_MALLOC=1
+EXEFS_SRC	:=	exefs_src
+#ROMFS	:=	romfs
+
+#---------------------------------------------------------------------------------
+# options for code generation
+#---------------------------------------------------------------------------------
+ARCH	:=	-march=armv8-a -mtune=cortex-a57 -mtp=soft -fPIE -mcpu=cortex-a57+crc+fp+simd
+
+COMMON_CFLAGS	:=	-g -O2 \
+			-ffast-math -fno-unsafe-math-optimizations -fno-strict-aliasing -fvisibility=hidden \
+			-Wno-sign-compare -Wno-switch -Wno-format-security \
+			$(ARCH) $(DEFINES)
+
+COMMON_CFLAGS	+=	$(INCLUDE) -D__SWITCH__
+
+COMMON_CFLAGS	+=	-I$(DEVKITPRO)/portlibs/switch/include/SDL2 -I$(TOPDIR) -I$(TOPDIR)/game -I$(TOPDIR)/sys/nx/config -I$(TOPDIR)/mojoAL
+
+CFLAGS	:= $(COMMON_CFLAGS) -std=gnu11
+CXXFLAGS	:= $(COMMON_CFLAGS) -fexceptions -frtti -Woverloaded-virtual -std=gnu++11
+
+ASFLAGS	:=	-g $(ARCH)
+LDFLAGS	=	-specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
+
+LIBS	:= -lSDL2 -lEGL -lglapi -ldrm_nouveau -lvorbisfile -lvorbis -logg -ljpeg -lcurl -lz -lnx -lm
+
+#---------------------------------------------------------------------------------
+# source files
+#---------------------------------------------------------------------------------
+
+SRC_RENDERER	:=\
+	renderer/Cinematic.cpp \
+	renderer/GuiModel.cpp \
+	renderer/Image_files.cpp \
+	renderer/Image_init.cpp \
+	renderer/Image_load.cpp \
+	renderer/Image_process.cpp \
+	renderer/Image_program.cpp \
+	renderer/Interaction.cpp \
+	renderer/Material.cpp \
+	renderer/MegaTexture.cpp \
+	renderer/Model.cpp \
+	renderer/ModelDecal.cpp \
+	renderer/ModelManager.cpp \
+	renderer/ModelOverlay.cpp \
+	renderer/Model_beam.cpp \
+	renderer/Model_ase.cpp \
+	renderer/Model_liquid.cpp \
+	renderer/Model_lwo.cpp \
+	renderer/Model_ma.cpp \
+	renderer/Model_md3.cpp \
+	renderer/Model_md5.cpp \
+	renderer/Model_prt.cpp \
+	renderer/Model_sprite.cpp \
+	renderer/RenderEntity.cpp \
+	renderer/RenderSystem.cpp \
+	renderer/RenderSystem_init.cpp \
+	renderer/RenderWorld.cpp \
+	renderer/RenderWorld_demo.cpp \
+	renderer/RenderWorld_load.cpp \
+	renderer/RenderWorld_portals.cpp \
+	renderer/VertexCache.cpp \
+	renderer/draw_arb2.cpp \
+	renderer/draw_common.cpp \
+	renderer/tr_backend.cpp \
+	renderer/tr_deform.cpp \
+	renderer/tr_font.cpp \
+	renderer/tr_guisurf.cpp \
+	renderer/tr_light.cpp \
+	renderer/tr_lightrun.cpp \
+	renderer/tr_main.cpp \
+	renderer/tr_orderIndexes.cpp \
+	renderer/tr_polytope.cpp \
+	renderer/tr_render.cpp \
+	renderer/tr_rendertools.cpp \
+	renderer/tr_shadowbounds.cpp \
+	renderer/tr_stencilshadow.cpp \
+	renderer/tr_subview.cpp \
+	renderer/tr_trace.cpp \
+	renderer/tr_trisurf.cpp \
+	renderer/tr_turboshadow.cpp
+
+SRC_FRAMEWORK	:=\
+	framework/CVarSystem.cpp \
+	framework/CmdSystem.cpp \
+	framework/Common.cpp \
+	framework/Compressor.cpp \
+	framework/Console.cpp \
+	framework/DemoFile.cpp \
+	framework/DeclAF.cpp \
+	framework/DeclEntityDef.cpp \
+	framework/DeclFX.cpp \
+	framework/DeclManager.cpp \
+	framework/DeclParticle.cpp \
+	framework/DeclPDA.cpp \
+	framework/DeclSkin.cpp \
+	framework/DeclTable.cpp \
+	framework/EditField.cpp \
+	framework/EventLoop.cpp \
+	framework/File.cpp \
+	framework/FileSystem.cpp \
+	framework/KeyInput.cpp \
+	framework/UsercmdGen.cpp \
+	framework/Session_menu.cpp \
+	framework/Session.cpp \
+	framework/async/AsyncClient.cpp \
+	framework/async/AsyncNetwork.cpp \
+	framework/async/AsyncServer.cpp \
+	framework/async/MsgChannel.cpp \
+	framework/async/NetworkSystem.cpp \
+	framework/async/ServerScan.cpp \
+	framework/minizip/unzip.cpp
+
+SRC_CM	:=\
+	cm/CollisionModel_contacts.cpp \
+	cm/CollisionModel_contents.cpp \
+	cm/CollisionModel_debug.cpp \
+	cm/CollisionModel_files.cpp \
+	cm/CollisionModel_load.cpp \
+	cm/CollisionModel_rotate.cpp \
+	cm/CollisionModel_trace.cpp \
+	cm/CollisionModel_translate.cpp
+
+SRC_DMAP	:=\
+	tools/compilers/dmap/dmap.cpp \
+	tools/compilers/dmap/facebsp.cpp \
+	tools/compilers/dmap/gldraw.cpp \
+	tools/compilers/dmap/glfile.cpp \
+	tools/compilers/dmap/leakfile.cpp \
+	tools/compilers/dmap/map.cpp \
+	tools/compilers/dmap/optimize.cpp \
+	tools/compilers/dmap/output.cpp \
+	tools/compilers/dmap/portals.cpp \
+	tools/compilers/dmap/shadowopt3.cpp \
+	tools/compilers/dmap/tritjunction.cpp \
+	tools/compilers/dmap/tritools.cpp \
+	tools/compilers/dmap/ubrush.cpp \
+	tools/compilers/dmap/usurface.cpp
+
+SRC_AAS	:=\
+	tools/compilers/aas/AASBuild.cpp \
+	tools/compilers/aas/AASBuild_file.cpp \
+	tools/compilers/aas/AASBuild_gravity.cpp \
+	tools/compilers/aas/AASBuild_ledge.cpp \
+	tools/compilers/aas/AASBuild_merge.cpp \
+	tools/compilers/aas/AASCluster.cpp \
+	tools/compilers/aas/AASFile.cpp \
+	tools/compilers/aas/AASFile_optimize.cpp \
+	tools/compilers/aas/AASFile_sample.cpp \
+	tools/compilers/aas/AASReach.cpp \
+	tools/compilers/aas/AASFileManager.cpp \
+	tools/compilers/aas/Brush.cpp \
+	tools/compilers/aas/BrushBSP.cpp
+
+SRC_ROQ	:=\
+	tools/compilers/roqvq/NSBitmapImageRep.cpp \
+	tools/compilers/roqvq/codec.cpp \
+	tools/compilers/roqvq/roq.cpp \
+	tools/compilers/roqvq/roqParam.cpp
+
+SRC_RENDERBUMP	:= tools/compilers/renderbump/renderbump.cpp
+
+SRC_SOUND	:=\
+	sound/snd_cache.cpp \
+	sound/snd_decoder.cpp \
+	sound/snd_efxfile.cpp \
+	sound/snd_emitter.cpp \
+	sound/snd_shader.cpp \
+	sound/snd_system.cpp \
+	sound/snd_wavefile.cpp \
+	sound/snd_world.cpp
+
+SRC_UI	:=\
+	ui/BindWindow.cpp \
+	ui/ChoiceWindow.cpp \
+	ui/DeviceContext.cpp \
+	ui/EditWindow.cpp \
+	ui/FieldWindow.cpp \
+	ui/GameBearShootWindow.cpp \
+	ui/GameBustOutWindow.cpp \
+	ui/GameSSDWindow.cpp \
+	ui/GuiScript.cpp \
+	ui/ListGUI.cpp \
+	ui/ListWindow.cpp \
+	ui/MarkerWindow.cpp \
+	ui/RegExp.cpp \
+	ui/RenderWindow.cpp \
+	ui/SimpleWindow.cpp \
+	ui/SliderWindow.cpp \
+	ui/UserInterface.cpp \
+	ui/Window.cpp \
+	ui/Winvar.cpp
+
+SRC_TOOLS	:= tools/guied/GEWindowWrapper_stub.cpp
+
+SRC_IDLIB	:=\
+	idlib/bv/Bounds.cpp \
+	idlib/bv/Frustum.cpp \
+	idlib/bv/Sphere.cpp \
+	idlib/bv/Box.cpp \
+	idlib/geometry/DrawVert.cpp \
+	idlib/geometry/Winding2D.cpp \
+	idlib/geometry/Surface_SweptSpline.cpp \
+	idlib/geometry/Winding.cpp \
+	idlib/geometry/Surface.cpp \
+	idlib/geometry/Surface_Patch.cpp \
+	idlib/geometry/TraceModel.cpp \
+	idlib/geometry/JointTransform.cpp \
+	idlib/hashing/CRC32.cpp \
+	idlib/hashing/MD4.cpp \
+	idlib/hashing/MD5.cpp \
+	idlib/math/Angles.cpp \
+	idlib/math/Lcp.cpp \
+	idlib/math/Math.cpp \
+	idlib/math/Matrix.cpp \
+	idlib/math/Ode.cpp \
+	idlib/math/Plane.cpp \
+	idlib/math/Pluecker.cpp \
+	idlib/math/Polynomial.cpp \
+	idlib/math/Quat.cpp \
+	idlib/math/Rotation.cpp \
+	idlib/math/Simd.cpp \
+	idlib/math/Simd_Generic.cpp \
+	idlib/math/Simd_AltiVec.cpp \
+	idlib/math/Simd_MMX.cpp \
+	idlib/math/Simd_3DNow.cpp \
+	idlib/math/Simd_SSE.cpp \
+	idlib/math/Simd_SSE2.cpp \
+	idlib/math/Simd_SSE3.cpp \
+	idlib/math/Vector.cpp \
+	idlib/BitMsg.cpp \
+	idlib/LangDict.cpp \
+	idlib/Lexer.cpp \
+	idlib/Lib.cpp \
+	idlib/containers/HashIndex.cpp \
+	idlib/Dict.cpp \
+	idlib/Str.cpp \
+	idlib/Parser.cpp \
+	idlib/MapFile.cpp \
+	idlib/CmdArgs.cpp \
+	idlib/Token.cpp \
+	idlib/Base64.cpp \
+	idlib/Timer.cpp \
+	idlib/Heap.cpp
+
+SRC_OPENAL_STUB	:= sys/stub/openal_stub.cpp
+
+SRC_OPENAL	:= mojoAL/mojoal.c
+
+SRC_GLAD	:= glad41/glad.c
+
+SRC_SYS	:=\
+	sys/cpu.cpp \
+	sys/sys_local.cpp \
+	sys/nx/nx_threads.cpp \
+	sys/nx/nx_events.cpp \
+	sys/nx/nx_net.cpp \
+	sys/nx/nx_main.cpp \
+	sys/nx/main.cpp
+
+SRC_SYS_CORE	:= sys/glimp_egl.cpp
+
+SRC_GAME	:=\
+	game/AF.cpp \
+	game/AFEntity.cpp \
+	game/Actor.cpp \
+	game/Camera.cpp \
+	game/Entity.cpp \
+	game/BrittleFracture.cpp \
+	game/Fx.cpp \
+	game/GameEdit.cpp \
+	game/Game_local.cpp \
+	game/Game_network.cpp \
+	game/Item.cpp \
+	game/IK.cpp \
+	game/Light.cpp \
+	game/Misc.cpp \
+	game/Mover.cpp \
+	game/Moveable.cpp \
+	game/MultiplayerGame.cpp \
+	game/Player.cpp \
+	game/PlayerIcon.cpp \
+	game/PlayerView.cpp \
+	game/Projectile.cpp \
+	game/Pvs.cpp \
+	game/SecurityCamera.cpp \
+	game/SmokeParticles.cpp \
+	game/Sound.cpp \
+	game/Target.cpp \
+	game/Trigger.cpp \
+	game/Weapon.cpp \
+	game/WorldSpawn.cpp \
+	game/ai/AAS.cpp \
+	game/ai/AAS_debug.cpp \
+	game/ai/AAS_pathing.cpp \
+	game/ai/AAS_routing.cpp \
+	game/ai/AI.cpp \
+	game/ai/AI_events.cpp \
+	game/ai/AI_pathing.cpp \
+	game/ai/AI_Vagary.cpp \
+	game/gamesys/DebugGraph.cpp \
+	game/gamesys/Class.cpp \
+	game/gamesys/Event.cpp \
+	game/gamesys/SaveGame.cpp \
+	game/gamesys/SysCmds.cpp \
+	game/gamesys/SysCvar.cpp \
+	game/gamesys/TypeInfo.cpp \
+	game/anim/Anim.cpp \
+	game/anim/Anim_Blend.cpp \
+	game/anim/Anim_Import.cpp \
+	game/anim/Anim_Testmodel.cpp \
+	game/script/Script_Compiler.cpp \
+	game/script/Script_Interpreter.cpp \
+	game/script/Script_Program.cpp \
+	game/script/Script_Thread.cpp \
+	game/physics/Clip.cpp \
+	game/physics/Force.cpp \
+	game/physics/Force_Constant.cpp \
+	game/physics/Force_Drag.cpp \
+	game/physics/Force_Field.cpp \
+	game/physics/Force_Spring.cpp \
+	game/physics/Physics.cpp \
+	game/physics/Physics_AF.cpp \
+	game/physics/Physics_Actor.cpp \
+	game/physics/Physics_Base.cpp \
+	game/physics/Physics_Monster.cpp \
+	game/physics/Physics_Parametric.cpp \
+	game/physics/Physics_Player.cpp \
+	game/physics/Physics_RigidBody.cpp \
+	game/physics/Physics_Static.cpp \
+	game/physics/Physics_StaticMulti.cpp \
+	game/physics/Push.cpp
+
+SOURCEFILES_CPP	:=\
+	$(SRC_SYS) \
+	$(SRC_SYS_CORE) \
+	$(SRC_RENDERER) \
+	$(SRC_FRAMEWORK) \
+	$(SRC_CM) \
+	$(SRC_DMAP) \
+	$(SRC_AAS) \
+	$(SRC_ROQ) \
+	$(SRC_RENDERBUMP) \
+	$(SRC_SOUND) \
+	$(SRC_UI) \
+	$(SRC_TOOLS) \
+	$(SRC_IDLIB) \
+	$(SRC_OPENAL_STUB) \
+	$(SRC_GAME)
+
+SOURCEFILES_C	:=\
+	framework/minizip/cached_stdio.c \
+	framework/minizip/ioapi_cached.c \
+	$(SRC_GLAD)
+
+#---------------------------------------------------------------------------------
+# list of directories containing libraries, this must be the top level containing
+# include and lib
+#---------------------------------------------------------------------------------
+LIBDIRS	:= $(PORTLIBS) $(LIBNX)
+
+
+#---------------------------------------------------------------------------------
+# no real need to edit anything past this point unless you need to add additional
+# rules for different file extensions
+#---------------------------------------------------------------------------------
+ifneq ($(BUILD),$(notdir $(CURDIR)))
+#---------------------------------------------------------------------------------
+
+export OUTPUT	:=	$(CURDIR)/$(TARGET)
+export TOPDIR	:=	$(CURDIR)
+
+export VPATH	:=	$(foreach dir,$(SOURCES),$(CURDIR)/$(dir)) \
+			$(foreach sf,$(SOURCEFILES_CPP),$(CURDIR)/$(dir $(sf))) \
+			$(foreach sf,$(SOURCEFILES_C),$(CURDIR)/$(dir $(sf))) \
+			$(foreach dir,$(DATA),$(CURDIR)/$(dir))
+
+export DEPSDIR	:=	$(CURDIR)/$(BUILD)
+
+CFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c))) $(foreach f,$(SOURCEFILES_C),$(notdir $(f)))
+CPPFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp))) $(foreach f,$(SOURCEFILES_CPP),$(notdir $(f)))
+SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
+BINFILES	:=	$(foreach dir,$(DATA),$(notdir $(wildcard $(dir)/*.*)))
+
+#---------------------------------------------------------------------------------
+# use CXX for linking C++ projects, CC for standard C
+#---------------------------------------------------------------------------------
+ifeq ($(strip $(CPPFILES)),)
+#---------------------------------------------------------------------------------
+	export LD	:=	$(CC)
+#---------------------------------------------------------------------------------
+else
+#---------------------------------------------------------------------------------
+	export LD	:=	$(CXX)
+#---------------------------------------------------------------------------------
+endif
+#---------------------------------------------------------------------------------
+
+export OFILES_BIN	:=	$(addsuffix .o,$(BINFILES))
+export OFILES_SRC	:=	$(CPPFILES:.cpp=.o) $(CFILES:.c=.o) $(SFILES:.s=.o)
+export OFILES 	:=	$(OFILES_BIN) $(OFILES_SRC)
+export HFILES_BIN	:=	$(addsuffix .h,$(subst .,_,$(BINFILES)))
+
+export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
+			$(foreach dir,$(LIBDIRS),-I$(dir)/include) \
+			-I$(CURDIR)/$(BUILD)
+
+export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib)
+
+export BUILD_EXEFS_SRC := $(TOPDIR)/$(EXEFS_SRC)
+
+ifeq ($(strip $(ICON)),)
+	icons := $(wildcard *.jpg)
+	ifneq (,$(findstring $(TARGET).jpg,$(icons)))
+		export APP_ICON := $(TOPDIR)/$(TARGET).jpg
+	else
+		ifneq (,$(findstring icon.jpg,$(icons)))
+			export APP_ICON := $(TOPDIR)/icon.jpg
+		endif
+	endif
+else
+	export APP_ICON := $(TOPDIR)/$(ICON)
+endif
+
+ifeq ($(strip $(NO_ICON)),)
+	export NROFLAGS += --icon=$(APP_ICON)
+endif
+
+ifeq ($(strip $(NO_NACP)),)
+	export NROFLAGS += --nacp=$(CURDIR)/$(TARGET).nacp
+endif
+
+ifneq ($(APP_TITLEID),)
+	export NACPFLAGS += --titleid=$(APP_TITLEID)
+endif
+
+ifneq ($(ROMFS),)
+	export NROFLAGS += --romfsdir=$(CURDIR)/$(ROMFS)
+endif
+
+.PHONY: $(BUILD) clean all
+
+#---------------------------------------------------------------------------------
+all: $(BUILD)
+
+$(BUILD):
+	@[ -d $@ ] || mkdir -p $@
+	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
+
+#---------------------------------------------------------------------------------
+clean:
+	@echo clean ...
+	@rm -fr $(BUILD) $(TARGET).pfs0 $(TARGET).nso $(TARGET).nro $(TARGET).nacp $(TARGET).elf
+
+
+#---------------------------------------------------------------------------------
+else
+.PHONY:	all
+
+DEPENDS	:=	$(OFILES:.o=.d)
+
+#---------------------------------------------------------------------------------
+# main targets
+#---------------------------------------------------------------------------------
+
+all	:	$(OUTPUT).pfs0 $(OUTPUT).nro
+
+$(OUTPUT).pfs0	:	$(OUTPUT).nso
+
+$(OUTPUT).nso	:	$(OUTPUT).elf
+
+ifeq ($(strip $(NO_NACP)),)
+$(OUTPUT).nro	:	$(OUTPUT).elf $(OUTPUT).nacp
+else
+$(OUTPUT).nro	:	$(OUTPUT).elf
+endif
+
+$(OUTPUT).elf	:	$(OFILES)
+
+$(OFILES_SRC)	: $(HFILES_BIN)
+
+#---------------------------------------------------------------------------------
+# you need a rule like this for each extension you use as binary data
+#---------------------------------------------------------------------------------
+%.bin.o	%_bin.h :	%.bin
+#---------------------------------------------------------------------------------
+	@echo $(notdir $<)
+	@$(bin2o)
+
+-include $(DEPENDS)
+
+#---------------------------------------------------------------------------------------
+endif
+#---------------------------------------------------------------------------------------

@@ -42,7 +42,12 @@ If you have questions concerning this license or the applicable additional terms
 	#endif
 #endif
 
+#ifdef __SWITCH__
+#include <EGL/egl.h>
+#include "glad41/glad.h"
+#else
 #include <SDL_opengl.h>
+#endif
 
 #if defined( ID_DEDICATED ) && defined( _WIN32 )
 // restore WINGDIAPI

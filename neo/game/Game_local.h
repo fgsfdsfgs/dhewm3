@@ -558,6 +558,7 @@ private:
 
 extern idGameLocal			gameLocal;
 extern idAnimManager		animationLib;
+extern idAASFileManager	*AASFileManager;
 
 //============================================================================
 

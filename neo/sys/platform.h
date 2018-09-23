@@ -162,6 +162,33 @@ If you have questions concerning this license or the applicable additional terms
 #endif
 
 
+// Switch
+#ifdef __SWITCH__
+
+#include <switch.h>
+
+#define _alloca						alloca
+#define _alloca16( x )				((void *)((((uintptr_t)alloca( (x)+15 )) + 15) & ~15))
+
+#define ID_GAME_API
+
+#define ALIGN16( x )				x __attribute__ ((aligned (16)))
+#define PACKED						__attribute__((packed))
+
+#define PATHSEPERATOR_STR			"/"
+#define PATHSEPERATOR_CHAR			'/'
+
+#define __cdecl
+#define ASSERT						assert
+
+#define ID_INLINE					inline
+#define ID_STATIC_TEMPLATE
+
+#define assertmem( x, y )
+
+#endif
+
+
 #ifdef __GNUC__
 #define id_attribute(x) __attribute__(x)
 #else

@@ -288,15 +288,34 @@ void			Sys_ShutdownNetworking( void );
 ==============================================================
 */
 
-struct SDL_Thread;
-
 typedef int (*xthread_t)( void * );
+
+#ifdef __SWITCH__
+
+#include <threads.h>
+
+typedef unsigned int (*xtimerfunc_t)( unsigned int, void * );
+
+typedef struct {
+	const char		*name;
+	thrd_t		threadHandle;
+	unsigned int	threadId;
+} xthreadInfo;
+
+int				Sys_StartTimer( unsigned int interval, xtimerfunc_t function, void *parms );
+void				Sys_StopTimer( void );
+
+#else
+
+struct SDL_Thread;
 
 typedef struct {
 	const char		*name;
 	SDL_Thread		*threadHandle;
 	unsigned int	threadId;
 } xthreadInfo;
+
+#endif
 
 void				Sys_CreateThread( xthread_t function, void *parms, xthreadInfo &info, const char *name );
 void				Sys_DestroyThread( xthreadInfo& info ); // sets threadHandle back to 0
