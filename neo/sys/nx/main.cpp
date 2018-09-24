@@ -41,6 +41,8 @@ If you have questions concerning this license or the applicable additional terms
 
 #include <locale.h>
 
+extern "C" u32 __nx_nv_transfermem_size = 0x800000;
+
 static char path_argv[MAX_OSPATH];
 
 bool Sys_GetPath(sysPath_t type, idStr &path) {

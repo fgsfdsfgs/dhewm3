@@ -55,7 +55,7 @@ switch egl stuff
 
 static void SetMesaConfig(void) {
 	// Uncomment below to disable error checking and save CPU time (useful for production):
-	// setenv("MESA_NO_ERROR", "1", 1);
+	setenv("MESA_NO_ERROR", "1", 1);
 
 	// Uncomment below to enable Mesa logging:
 	// setenv("EGL_LOG_LEVEL", "debug", 1);

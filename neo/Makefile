@@ -39,7 +39,7 @@ BUILD		:=	build
 SOURCES		:=
 DATA		:=	data
 INCLUDES	:=	
-DEFINES		+=	-DCORE=ON -DSDL2=ON -DBASE=ON -DUSE_FILE32API -DUSE_LIBC_MALLOC=1
+DEFINES		+=	-DCORE=ON -DSDL2=ON -DBASE=ON -DUSE_FILE32API
 EXEFS_SRC	:=	exefs_src
 #ROMFS	:=	romfs
 
@@ -48,8 +48,8 @@ EXEFS_SRC	:=	exefs_src
 #---------------------------------------------------------------------------------
 ARCH	:=	-march=armv8-a -mtune=cortex-a57 -mtp=soft -fPIE -mcpu=cortex-a57+crc+fp+simd
 
-COMMON_CFLAGS	:=	-g -O2 \
-			-ffast-math -fno-unsafe-math-optimizations -fno-strict-aliasing -fvisibility=hidden \
+COMMON_CFLAGS	:=	-g -O3 \
+			-ffast-math -fno-unsafe-math-optimizations -fno-strict-aliasing -fvisibility=hidden -fomit-frame-pointer \
 			-Wno-sign-compare -Wno-switch -Wno-format-security \
 			$(ARCH) $(DEFINES)
 
