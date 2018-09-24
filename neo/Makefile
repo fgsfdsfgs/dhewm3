@@ -63,7 +63,7 @@ CXXFLAGS	:= $(COMMON_CFLAGS) -fexceptions -frtti -Woverloaded-virtual -std=gnu++
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-LIBS	:= -lSDL2 -lEGL -lglapi -ldrm_nouveau -lvorbisfile -lvorbis -logg -ljpeg -lcurl -lz -lnx -lm
+LIBS	:= -lopenal-soft -lSDL2 -lEGL -lglapi -ldrm_nouveau -lvorbisfile -lvorbis -logg -ljpeg -lcurl -lz -lnx -lm
 
 #---------------------------------------------------------------------------------
 # source files
@@ -391,7 +391,6 @@ SOURCEFILES_CPP	:=\
 SOURCEFILES_C	:=\
 	framework/minizip/cached_stdio.c \
 	framework/minizip/ioapi_cached.c \
-	$(SRC_OPENAL) \
 	$(SRC_GLAD)
 
 #---------------------------------------------------------------------------------
