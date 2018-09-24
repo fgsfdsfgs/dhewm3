@@ -18,6 +18,30 @@ altering the original gameplay.
 
 **Report bugs here:** https://github.com/dhewm/dhewm3/issues
 
+## SWITCH PORT
+
+To build the Switch port, you need the latest versions of the following:
+- devkitA64
+- libnx
+- switch-mesa
+- switch-libdrm_nouveau
+- [this version of switch-sdl2](https://github.com/devkitPro/SDL/tree/switch-sdl2-gles-egl)
+- switch-libogg
+- switch-libvorbis
+- switch-curl
+- switch-zlib
+- switch-libjpeg-turbo
+- [my fork of openal-soft](https://github.com/fgsfdsfgs/openal-soft)
+
+Most of the above libraries (except `switch-sdl2` and `openal-soft`) can be installed using `(dkp-)pacman` from the devkitPro repositories.
+
+devkitA64 should be fully set up as described [here](https://devkitpro.org/wiki/Getting_Started).
+
+To build the port, execute `make` in the `neo` directory.
+
+The game, both the NRO and the data files (i.e. the `base` folder), should be installed to `/switch/dhewm3/` on your SD card.
+
+nxlink debugging is currently enabled by default.
 
 # CHANGES
 
