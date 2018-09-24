@@ -285,8 +285,8 @@ static inline byte JoyToKey(int button) {
         /* KEY_RSTICK */ K_JOY32,
         /* KEY_L      */ K_SHIFT,
         /* KEY_R      */ K_DEL,
-        /* KEY_ZL     */ K_SPACE,
-        /* KEY_ZR     */ K_HOME,
+        /* KEY_ZL     */ K_MOUSE2,
+        /* KEY_ZR     */ K_MOUSE1,
         /* KEY_PLUS   */ K_ESCAPE,
         /* KEY_MINUS  */ K_TAB,
         /* KEY_DLEFT  */ K_LEFTARROW,
@@ -297,6 +297,84 @@ static inline byte JoyToKey(int button) {
 
     if (button < 0 || button > 15) return 0;
     return keymap[button];
+}
+
+static int joy_axis[16] = { 0 };
+static int joy_axis_prev[16] = { 0 };
+static int joy_mouse[2] = { 0 };
+static int joy_mouse_prev[2] = { 0 };
+static int joy_move[2] = { 0 };
+static int joy_move_prev[2] = { 0 };
+
+static inline void JoyAxisMotion(Uint8 axis, Sint16 val) {
+	constexpr float mouse_modifier = 1.f / 2048.f;
+	constexpr int move_modifier = 256;
+	constexpr int deadzone = 32;
+
+	if (abs(val) < deadzone) val = 0;
+
+	if (axis == 2 || axis == 3) {
+		joy_mouse_prev[axis - 2] = joy_mouse[axis - 2];
+		joy_mouse[axis - 2] = val * mouse_modifier;
+	} else if (axis == 0 || axis == 1) {
+		joy_move_prev[axis] = joy_move[axis];
+		joy_move[axis] = val / move_modifier;
+	}
+
+	joy_axis_prev[axis] = joy_axis[axis];
+	joy_axis[axis] = val;
+}
+
+static inline bool JoyGenerateMoveEvents(SDL_Event *ev, int axis, int val, int old) {
+	constexpr int move_threshold = 64;
+	static const struct {
+		SDL_Keycode sym;
+		SDL_Scancode scan;
+	} axis_map[][2] = {
+		{ { SDLK_a, SDL_SCANCODE_A }, { SDLK_d, SDL_SCANCODE_D }, },
+		{ { SDLK_w, SDL_SCANCODE_W }, { SDLK_s, SDL_SCANCODE_S }, },
+	};
+
+	bool key[2] = { val < -move_threshold, val > move_threshold };
+	bool key_prev[2] = { old < -move_threshold, old > move_threshold };
+
+	bool ret = false;
+
+	for (int i = 0; i < 2; ++i) {
+		if (key[i] != key_prev[i]) {
+			ev->type = key[i] ? SDL_KEYDOWN : SDL_KEYUP;
+			ev->key.type = ev->type;
+			ev->key.timestamp = Sys_Milliseconds();
+			ev->key.state = key[i] ? SDL_PRESSED : SDL_RELEASED;
+			ev->key.keysym.scancode = axis_map[axis][i].scan;
+			ev->key.keysym.sym = axis_map[axis][i].sym;
+			SDL_PeepEvents(ev, 1, SDL_ADDEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT);
+			ret = true;
+		}
+	}
+
+	return ret;
+}
+
+static inline bool JoyGenerateEvents(void) {
+	SDL_Event ev = { 0 };
+	bool ret = false;
+
+	if (joy_mouse[0] || joy_mouse[1]) {
+		ev.type = SDL_MOUSEMOTION;
+		ev.motion.xrel = joy_mouse[0];
+		ev.motion.yrel = joy_mouse[1];
+		SDL_PeepEvents(&ev, 1, SDL_ADDEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT);
+		ret = true;
+	}
+
+	if (JoyGenerateMoveEvents(&ev, 0, joy_move[0], joy_move_prev[0]))
+		ret = true;
+
+	if (JoyGenerateMoveEvents(&ev, 1, joy_move[1], joy_move_prev[1]))
+		ret = true;
+
+	return ret;
 }
 
 /*
@@ -311,11 +389,6 @@ void Sys_InitInput() {
 	SDL_InitSubSystem(SDL_INIT_JOYSTICK);
 	SDL_JoystickOpen(0);
 	SDL_JoystickOpen(1);
-
-#if !SDL_VERSION_ATLEAST(2, 0, 0)
-	SDL_EnableUNICODE(1);
-	SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
-#endif
 
 	in_kbd.SetModified();
 }
@@ -421,7 +494,6 @@ sysEvent_t Sys_GetEvent() {
 
 	static const sysEvent_t res_none = { SE_NONE, 0, 0, 0, NULL };
 
-#if SDL_VERSION_ATLEAST(2, 0, 0)
 	static char s[SDL_TEXTINPUTEVENT_TEXT_SIZE] = {0};
 	static size_t s_pos = 0;
 
@@ -438,7 +510,6 @@ sysEvent_t Sys_GetEvent() {
 
 		return res;
 	}
-#endif
 
 	static byte c = 0;
 
@@ -454,7 +525,6 @@ sysEvent_t Sys_GetEvent() {
 	// loop until there is an event we care about (will return then) or no more events
 	while(SDL_PollEvent(&ev)) {
 		switch (ev.type) {
-#if SDL_VERSION_ATLEAST(2, 0, 0)
 		case SDL_WINDOWEVENT:
 			switch (ev.window.event) {
 				case SDL_WINDOWEVENT_FOCUS_GAINED: {
@@ -477,32 +547,6 @@ sysEvent_t Sys_GetEvent() {
 			}
 
 			continue; // handle next event
-#else
-		case SDL_ACTIVEEVENT:
-			{
-				int flags = 0;
-
-				if (ev.active.gain) {
-					flags = GRAB_ENABLE | GRAB_REENABLE | GRAB_HIDECURSOR;
-
-					// unset modifier, in case alt-tab was used to leave window and ALT is still set
-					// as that can cause fullscreen-toggling when pressing enter...
-					SDLMod currentmod = SDL_GetModState();
-					int newmod = KMOD_NONE;
-					if (currentmod & KMOD_CAPS) // preserve capslock
-						newmod |= KMOD_CAPS;
-
-					SDL_SetModState((SDLMod)newmod);
-				}
-
-				GLimp_GrabInput(flags);
-			}
-
-			continue; // handle next event
-
-		case SDL_VIDEOEXPOSE:
-			continue; // handle next event
-#endif
 
 		case SDL_KEYDOWN:
 			if (ev.key.keysym.sym == SDLK_RETURN && (ev.key.keysym.mod & KMOD_ALT) > 0) {
@@ -513,22 +557,6 @@ sysEvent_t Sys_GetEvent() {
 
 			// fall through
 		case SDL_KEYUP:
-#if !SDL_VERSION_ATLEAST(2, 0, 0)
-			key = mapkey(ev.key.keysym.sym);
-			if (!key) {
-				unsigned char c;
-				// check if its an unmapped console key
-				if (ev.key.keysym.unicode == (c = Sys_GetConsoleKey(false))) {
-					key = c;
-				} else if (ev.key.keysym.unicode == (c = Sys_GetConsoleKey(true))) {
-					key = c;
-				} else {
-					if (ev.type == SDL_KEYDOWN)
-						common->Warning("unmapped SDL key %d (0x%x)", ev.key.keysym.sym, ev.key.keysym.unicode);
-					continue; // handle next event
-				}
-			}
-#else
 		{
 			// workaround for AZERTY-keyboards, which don't have 1, 2, ..., 9, 0 in first row:
 			// always map those physical keys (scancodes) to those keycodes anyway
@@ -561,7 +589,6 @@ sysEvent_t Sys_GetEvent() {
 				}
 			}
 		}
-#endif
 
 			res.evType = SE_KEY;
 			res.evValue = key;
@@ -569,13 +596,8 @@ sysEvent_t Sys_GetEvent() {
 
 			kbd_polls.Append(kbd_poll_t(key, ev.key.state == SDL_PRESSED));
 
-#if SDL_VERSION_ATLEAST(2, 0, 0)
 			if (key == K_BACKSPACE && ev.key.state == SDL_PRESSED)
 				c = key;
-#else
-			if (ev.key.state == SDL_PRESSED && (ev.key.keysym.unicode & 0xff00) == 0)
-				c = ev.key.keysym.unicode & 0xff;
-#endif
 
 			return res;
 
@@ -591,7 +613,10 @@ sysEvent_t Sys_GetEvent() {
 				c = key;
 			return res;
 
-#if SDL_VERSION_ATLEAST(2, 0, 0)
+		case SDL_JOYAXISMOTION:
+			JoyAxisMotion(ev.jaxis.axis, ev.jaxis.value);
+			continue;
+
 		case SDL_TEXTINPUT:
 			if (ev.text.text[0]) {
 				res.evType = SE_CHAR;
@@ -610,7 +635,6 @@ sysEvent_t Sys_GetEvent() {
 		case SDL_TEXTEDITING:
 			// on windows we get this event whenever the window gains focus.. just ignore it.
 			continue;
-#endif
 
 		case SDL_MOUSEMOTION:
 			res.evType = SE_MOUSE;
@@ -622,7 +646,6 @@ sysEvent_t Sys_GetEvent() {
 
 			return res;
 
-#if SDL_VERSION_ATLEAST(2, 0, 0)
 		case SDL_MOUSEWHEEL:
 			res.evType = SE_KEY;
 
@@ -637,7 +660,6 @@ sysEvent_t Sys_GetEvent() {
 			res.evValue2 = 1;
 
 			return res;
-#endif
 
 		case SDL_MOUSEBUTTONDOWN:
 		case SDL_MOUSEBUTTONUP:
@@ -656,21 +678,7 @@ sysEvent_t Sys_GetEvent() {
 				res.evValue = K_MOUSE2;
 				mouse_polls.Append(mouse_poll_t(M_ACTION2, ev.button.state == SDL_PRESSED ? 1 : 0));
 				break;
-
-#if !SDL_VERSION_ATLEAST(2, 0, 0)
-			case SDL_BUTTON_WHEELUP:
-				res.evValue = K_MWHEELUP;
-				if (ev.button.state == SDL_PRESSED)
-					mouse_polls.Append(mouse_poll_t(M_DELTAZ, 1));
-				break;
-			case SDL_BUTTON_WHEELDOWN:
-				res.evValue = K_MWHEELDOWN;
-				if (ev.button.state == SDL_PRESSED)
-					mouse_polls.Append(mouse_poll_t(M_DELTAZ, -1));
-				break;
-#endif
 			default:
-#if SDL_VERSION_ATLEAST(2, 0, 0)
 				// handle X1 button and above
 				if( ev.button.button < SDL_BUTTON_LEFT + 8 ) // doesn't support more than 8 mouse buttons
 				{
@@ -679,7 +687,6 @@ sysEvent_t Sys_GetEvent() {
 					mouse_polls.Append( mouse_poll_t( M_ACTION1 + buttonIndex, ev.button.state == SDL_PRESSED ? 1 : 0 ) );
 				}
 				else
-#endif
 				continue; // handle next event
 			}
 
@@ -737,6 +744,8 @@ void Sys_GenerateEvents() {
 
 	if (s)
 		PushConsoleEvent(s);
+
+	JoyGenerateEvents();
 
 	SDL_PumpEvents();
 }
