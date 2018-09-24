@@ -335,6 +335,7 @@ static int SysTimerThread( void *param ) {
 		ret = t_callback(interval, NULL);
 		if (!ret) break;
 
+		interval = ret;
 		scheduled = tick + interval;
 	}
 
