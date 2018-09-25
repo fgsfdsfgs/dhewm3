@@ -33,6 +33,8 @@ If you have questions concerning this license or the applicable additional terms
 #include "idlib/Heap.h"
 #include "framework/Common.h"
 #include "framework/KeyInput.h"
+#include "framework/Session.h"
+#include "framework/Session_local.h"
 #include "renderer/RenderSystem.h"
 #include "renderer/tr_local.h"
 
@@ -299,12 +301,50 @@ static inline byte JoyToKey(int button) {
     return keymap[button];
 }
 
+// since we're operating on touch events, we have to track the mouse state manually
+// this is also reset in some places, eg in SetCursor
+
+int virt_mouse_x = 0;
+int virt_mouse_y = 0;
+
 static int joy_axis[16] = { 0 };
 static int joy_axis_prev[16] = { 0 };
 static int joy_mouse[2] = { 0 };
 static int joy_mouse_prev[2] = { 0 };
 static int joy_move[2] = { 0 };
 static int joy_move_prev[2] = { 0 };
+
+static int touch_pos[2] = { 0 };
+static int touch_pos_prev[2] = { 0 };
+static bool touch_pressed = false;
+static bool touch_pressed_prev = false;
+
+extern idSession *session;
+extern idSessionLocal sessLocal;
+
+static inline void UpdateVirtualMousePosition(int dx, int dy) {
+	// only update cursor position in menus
+	if (!session || !sessLocal.GetActiveMenu())
+		return;
+	virt_mouse_x += dx;
+	virt_mouse_y += dy;
+	if (virt_mouse_x < 0) virt_mouse_x = 0;
+	else if (virt_mouse_x >= 1280) virt_mouse_x = 1279;
+	if (virt_mouse_y < 0) virt_mouse_y = 0;
+	else if (virt_mouse_y >= 720) virt_mouse_y = 719;
+}
+
+static inline void SetVirtualMousePosition(int x, int y) {
+	// only update cursor position in the menus
+	if (!session || !sessLocal.GetActiveMenu())
+		return;
+	virt_mouse_x = x;
+	virt_mouse_y = y;
+	if (virt_mouse_x < 0) virt_mouse_x = 0;
+	else if (virt_mouse_x >= 1280) virt_mouse_x = 1279;
+	if (virt_mouse_y < 0) virt_mouse_y = 0;
+	else if (virt_mouse_y >= 720) virt_mouse_y = 719;
+}
 
 static inline void JoyAxisMotion(Uint8 axis, Sint16 val) {
 	constexpr float mouse_modifier = 1.f / 2048.f;
@@ -364,15 +404,72 @@ static inline bool JoyGenerateEvents(void) {
 		ev.type = SDL_MOUSEMOTION;
 		ev.motion.xrel = joy_mouse[0];
 		ev.motion.yrel = joy_mouse[1];
+		UpdateVirtualMousePosition(joy_mouse[0], joy_mouse[1]);
 		SDL_PeepEvents(&ev, 1, SDL_ADDEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT);
 		ret = true;
 	}
 
-	if (JoyGenerateMoveEvents(&ev, 0, joy_move[0], joy_move_prev[0]))
+	if (JoyGenerateMoveEvents(&ev, 0, joy_move[0], joy_move_prev[0])) {
+		joy_move_prev[0] = joy_move[0];
 		ret = true;
+	}
 
-	if (JoyGenerateMoveEvents(&ev, 1, joy_move[1], joy_move_prev[1]))
+	if (JoyGenerateMoveEvents(&ev, 1, joy_move[1], joy_move_prev[1])) {
+		joy_move_prev[1] = joy_move[1];
 		ret = true;
+	}
+
+	return ret;
+}
+
+static inline void TouchMotion(float x, float y) {
+	// only update cursor position in menus
+	if (!session || !sessLocal.GetActiveMenu())
+		return;
+	touch_pos_prev[0] = touch_pos[0];
+	touch_pos_prev[1] = touch_pos[1];
+	// in switch-sdl2, touch position is always in tablet screen coordinates
+	// so we assume 1280x720
+	touch_pos[0] = x * 1280;
+	touch_pos[1] = y * 720;
+}
+
+static inline void TouchPress(bool pressed) {
+	touch_pressed_prev = touch_pressed;
+	touch_pressed = pressed;
+}
+
+static inline bool TouchGenerateEvents(void) {
+	SDL_Event ev = { 0 };
+	bool ret = false;
+
+	if (touch_pos[0] != touch_pos_prev[0] || touch_pos[1] != touch_pos_prev[1]) {
+		// Sys_GetEvent only checks for relative motion, so we have to do this shit
+		ev.type = SDL_MOUSEMOTION;
+		ev.motion.xrel = touch_pos[0] - virt_mouse_x;
+		ev.motion.yrel = touch_pos[1] - virt_mouse_y;
+		SetVirtualMousePosition(touch_pos[0], touch_pos[1]);
+		SDL_PeepEvents(&ev, 1, SDL_ADDEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT);
+		// prevent duplicate events until the next touch event
+		touch_pos_prev[0] = touch_pos[0];
+		touch_pos_prev[1] = touch_pos[1];
+		ret = true;
+	}
+
+	if (touch_pressed != touch_pressed_prev) {
+		ev.type = touch_pressed ? SDL_MOUSEBUTTONDOWN : SDL_MOUSEBUTTONUP;
+		ev.button.timestamp = Sys_Milliseconds();
+		ev.button.which = SDL_TOUCH_MOUSEID;
+		ev.button.button = SDL_BUTTON_LEFT;
+		ev.button.state = touch_pressed ? SDL_PRESSED : SDL_RELEASED;
+		ev.button.clicks = 1;
+		ev.button.x = touch_pos[0];
+		ev.button.y = touch_pos[1];
+		SDL_PeepEvents(&ev, 1, SDL_ADDEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT);
+		ret = true;
+		// prevent duplicate events until the next touch event
+		touch_pressed_prev = touch_pressed;
+	}
 
 	return ret;
 }
@@ -636,6 +733,16 @@ sysEvent_t Sys_GetEvent() {
 			// on windows we get this event whenever the window gains focus.. just ignore it.
 			continue;
 
+		case SDL_FINGERDOWN:
+		case SDL_FINGERUP:
+			// TODO: maybe just do the same shit as in a MOUSEBUTTONDOWN event, but
+			// with K_MOUSE1 only?
+			TouchPress(ev.type == SDL_FINGERDOWN);
+		// fallthrough
+		case SDL_FINGERMOTION:
+			TouchMotion(ev.tfinger.x, ev.tfinger.y);
+			continue;
+
 		case SDL_MOUSEMOTION:
 			res.evType = SE_MOUSE;
 			res.evValue = ev.motion.xrel;
@@ -746,6 +853,7 @@ void Sys_GenerateEvents() {
 		PushConsoleEvent(s);
 
 	JoyGenerateEvents();
+	TouchGenerateEvents();
 
 	SDL_PumpEvents();
 }
