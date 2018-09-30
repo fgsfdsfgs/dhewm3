@@ -138,7 +138,9 @@ main
 */
 int main(int argc, char **argv) {
 	socketInitializeDefault();
+#if defined(DEBUG) || defined(NXLINK_DEBUG)
 	nxlinkStdio();
+#endif
 
 	strncpy( path_argv, "/switch/dhewm3", MAX_OSPATH );
 
