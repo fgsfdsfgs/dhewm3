@@ -37,11 +37,11 @@ Most of the above libraries (except `switch-sdl2` and `openal-soft`) can be inst
 
 devkitA64 should be fully set up as described [here](https://devkitpro.org/wiki/Getting_Started).
 
-To build the port, execute `make` in the `neo` directory.
+To build the port, execute `make -f Makefile.nx` in the `neo` directory.
 
 The game, both the NRO and the data files (i.e. the `base` folder), should be installed to `/switch/dhewm3/` on your SD card.
 
-nxlink debugging is currently enabled by default.
+nxlink debugging is enabled when either `DEBUG` or `NXLINK_DEBUG` is defined.
 
 # CHANGES
 

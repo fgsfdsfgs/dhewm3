@@ -33,6 +33,7 @@ include $(DEVKITPRO)/libnx/switch_rules
 APP_TITLE	:=	dhewm3-nx
 APP_AUTHOR	:=	fgsfds
 APP_VERSION	:=	0.1.0
+ICON		:=	$(TOPDIR)/nx_misc/icon.jpg
 
 TARGET		:=	dhewm3nx
 BUILD		:=	build
@@ -49,13 +50,13 @@ EXEFS_SRC	:=	exefs_src
 ARCH	:=	-march=armv8-a -mtune=cortex-a57 -mtp=soft -fPIE -mcpu=cortex-a57+crc+fp+simd
 
 COMMON_CFLAGS	:=	-g -O3 \
-			-ffast-math -fno-unsafe-math-optimizations -fno-strict-aliasing -fvisibility=hidden -fomit-frame-pointer \
+			-ffast-math -fno-unsafe-math-optimizations -fno-strict-aliasing -ftree-vectorizer-verbose -fvisibility=hidden -fomit-frame-pointer \
 			-Wno-sign-compare -Wno-switch -Wno-format-security \
 			$(ARCH) $(DEFINES)
 
 COMMON_CFLAGS	+=	$(INCLUDE) -D__SWITCH__
 
-COMMON_CFLAGS	+=	-I$(DEVKITPRO)/portlibs/switch/include/SDL2 -I$(TOPDIR) -I$(TOPDIR)/game -I$(TOPDIR)/sys/nx/config -I$(TOPDIR)/mojoAL
+COMMON_CFLAGS	+=	-I$(DEVKITPRO)/portlibs/switch/include/SDL2 -I$(TOPDIR) -I$(TOPDIR)/game -I$(TOPDIR)/sys/nx/config
 
 CFLAGS	:= $(COMMON_CFLAGS) -std=gnu11
 CXXFLAGS	:= $(COMMON_CFLAGS) -fexceptions -frtti -Woverloaded-virtual -std=gnu++11
@@ -485,7 +486,7 @@ all: $(BUILD)
 
 $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
-	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
+	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile.nx
 
 #---------------------------------------------------------------------------------
 clean:
