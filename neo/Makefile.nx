@@ -33,7 +33,7 @@ include $(DEVKITPRO)/libnx/switch_rules
 APP_TITLE	:=	dhewm3-nx
 APP_AUTHOR	:=	fgsfds
 APP_VERSION	:=	0.1.0
-ICON		:=	$(TOPDIR)/nx_misc/icon.jpg
+ICON		:=	nx_misc/icon.jpg
 
 TARGET		:=	dhewm3nx
 BUILD		:=	build
@@ -50,7 +50,7 @@ EXEFS_SRC	:=	exefs_src
 ARCH	:=	-march=armv8-a -mtune=cortex-a57 -mtp=soft -fPIE -mcpu=cortex-a57+crc+fp+simd
 
 COMMON_CFLAGS	:=	-g -O3 \
-			-ffast-math -fno-unsafe-math-optimizations -fno-strict-aliasing -ftree-vectorizer-verbose -fvisibility=hidden -fomit-frame-pointer \
+			-ffast-math -fno-unsafe-math-optimizations -fno-strict-aliasing -fvisibility=hidden -fomit-frame-pointer \
 			-Wno-sign-compare -Wno-switch -Wno-format-security \
 			$(ARCH) $(DEFINES)
 
