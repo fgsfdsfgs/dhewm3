@@ -37,11 +37,11 @@ APP_VERSION	:=	0.1.0
 ifeq ($(D3XP),ON)
 	TARGET		:=	dhewm3nx_xp
 	APP_TITLE	:=	dhewm3xp-nx
-	ICON		:=	nx_misc/icon.jpg
+	ICON		:=	nx_misc/icon_d3xp.jpg
 else
 	TARGET		:=	dhewm3nx
 	APP_TITLE	:=	dhewm3-nx
-	ICON		:=	nx_misc/icon_d3xp.jpg
+	ICON		:=	nx_misc/icon.jpg
 endif
 
 BUILD		:=	build
