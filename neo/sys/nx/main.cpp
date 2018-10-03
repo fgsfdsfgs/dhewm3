@@ -136,6 +136,8 @@ void idSysLocal::OpenURL( const char *url, bool quit ) {
 main
 ===============
 */
+#define MAX_FAKEARGS 32
+
 int main(int argc, char **argv) {
 	socketInitializeDefault();
 #if defined(DEBUG) || defined(NXLINK_DEBUG)
@@ -144,8 +146,31 @@ int main(int argc, char **argv) {
 
 	strncpy( path_argv, "/switch/dhewm3", MAX_OSPATH );
 
-	if ( argc > 1 ) {
-		common->Init( argc-1, &argv[1] );
+	// dirtily inject args if needed
+	static char *fake_argv[MAX_FAKEARGS + 1] = { NULL };
+	int fake_argc = argc;
+	for (int i = 0; i < argc && i < MAX_FAKEARGS; ++i)
+		fake_argv[i] = argv[i];
+#ifdef _D3XP
+	// load RoE by default if present, until I can figure out a better way to do this
+	if (fake_argc + 3 < MAX_FAKEARGS) {
+		fake_argv[fake_argc++] = (char *)"+set";
+		fake_argv[fake_argc++] = (char *)"fs_game";
+		fake_argv[fake_argc++] = (char *)"d3xp";
+	}
+#endif
+#if defined(DEBUG) || defined(NXLINK_DEBUG)
+	// enable developer mode when debug is enabled
+	if (fake_argc + 3 < MAX_FAKEARGS) {
+		fake_argv[fake_argc++] = (char *)"+set";
+		fake_argv[fake_argc++] = (char *)"developer";
+		fake_argv[fake_argc++] = (char *)"1";
+	}
+#endif
+	fake_argv[fake_argc] = NULL;
+
+	if ( fake_argc > 1 ) {
+		common->Init( fake_argc-1, &fake_argv[1] );
 	} else {
 		common->Init( 0, NULL );
 	}

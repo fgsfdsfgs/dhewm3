@@ -39,7 +39,9 @@ devkitA64 should be fully set up as described [here](https://devkitpro.org/wiki/
 
 To build the port, execute `make -f Makefile.nx` in the `neo` directory.
 
-The game, both the NRO and the data files (i.e. the `base` folder), should be installed to `/switch/dhewm3/` on your SD card.
+Set `D3XP=ON` to build RoE game code into the NRO instead of base game code, e.g. `D3XP=ON make -f Makefile.nx`. The resulting executable will automatically load RoE on startup, if present.
+
+The game, both the NRO and the data files (i.e. the `base` and/or `d3xp` folders), should be installed to `/switch/dhewm3/` on your SD card.
 
 nxlink debugging is enabled when either `DEBUG` or `NXLINK_DEBUG` is defined.
 
