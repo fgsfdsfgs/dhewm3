@@ -25,7 +25,7 @@ To build the Switch port, you need the latest versions of the following:
 - libnx
 - switch-mesa
 - switch-libdrm_nouveau
-- [this version of switch-sdl2](https://github.com/devkitPro/SDL/tree/switch-sdl2-gles-egl)
+- switch-sdl2
 - switch-libogg
 - switch-libvorbis
 - switch-curl
