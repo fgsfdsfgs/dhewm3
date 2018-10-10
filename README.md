@@ -33,7 +33,7 @@ To build the Switch port, you need the latest versions of the following:
 - switch-libjpeg-turbo
 - [my fork of openal-soft](https://github.com/fgsfdsfgs/openal-soft)
 
-Most of the above libraries (except `switch-sdl2` and `openal-soft`) can be installed using `(dkp-)pacman` from the devkitPro repositories.
+Most of the above libraries (except `openal-soft`) can be installed using `(dkp-)pacman` from the devkitPro repositories.
 
 devkitA64 should be fully set up as described [here](https://devkitpro.org/wiki/Getting_Started).
 
