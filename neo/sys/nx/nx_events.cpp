@@ -301,12 +301,6 @@ static inline byte JoyToKey(int button) {
     return keymap[button];
 }
 
-// since we're operating on touch events, we have to track the mouse state manually
-// this is also reset in some places, eg in SetCursor
-
-int virt_mouse_x = 0;
-int virt_mouse_y = 0;
-
 static int joy_axis[16] = { 0 };
 static int joy_axis_prev[16] = { 0 };
 static int joy_mouse[2] = { 0 };
@@ -319,6 +313,22 @@ static int touch_pos_prev[2] = { 0 };
 static bool touch_pressed = false;
 static bool touch_pressed_prev = false;
 
+// all the menus are now 4:3, so we got a different origin
+// 960x720 is the 4:3 resolution we get
+
+static constexpr int touch_w = 1280;
+static constexpr int touch_h = 720;
+static constexpr int menu_w = 960;
+static constexpr int menu_h = 720;
+static constexpr int touch_ox = (touch_w - menu_w) / 2;
+static constexpr int touch_oy = (touch_h - menu_h) / 2;
+
+// since we're operating on touch events, we have to track the mouse state manually
+// this is also reset in some places, eg in SetCursor
+
+int virt_mouse_x = touch_ox;
+int virt_mouse_y = touch_oy; 
+
 extern idSession *session;
 extern idSessionLocal sessLocal;
 
@@ -329,9 +339,9 @@ static inline void UpdateVirtualMousePosition(int dx, int dy) {
 	virt_mouse_x += dx;
 	virt_mouse_y += dy;
 	if (virt_mouse_x < 0) virt_mouse_x = 0;
-	else if (virt_mouse_x >= 1280) virt_mouse_x = 1279;
+	else if (virt_mouse_x >= touch_w) virt_mouse_x = touch_w-1;
 	if (virt_mouse_y < 0) virt_mouse_y = 0;
-	else if (virt_mouse_y >= 720) virt_mouse_y = 719;
+	else if (virt_mouse_y >= touch_h) virt_mouse_y = touch_h-1;
 }
 
 static inline void SetVirtualMousePosition(int x, int y) {
@@ -341,9 +351,9 @@ static inline void SetVirtualMousePosition(int x, int y) {
 	virt_mouse_x = x;
 	virt_mouse_y = y;
 	if (virt_mouse_x < 0) virt_mouse_x = 0;
-	else if (virt_mouse_x >= 1280) virt_mouse_x = 1279;
+	else if (virt_mouse_x >= touch_w) virt_mouse_x = touch_w-1;
 	if (virt_mouse_y < 0) virt_mouse_y = 0;
-	else if (virt_mouse_y >= 720) virt_mouse_y = 719;
+	else if (virt_mouse_y >= touch_h) virt_mouse_y = touch_h-1;
 }
 
 static inline void JoyAxisMotion(Uint8 axis, Sint16 val) {
@@ -426,12 +436,16 @@ static inline void TouchMotion(float x, float y) {
 	// only update cursor position in menus
 	if (!session || !sessLocal.GetActiveMenu())
 		return;
+	// in switch-sdl2, touch position is always in tablet screen coordinates
+	int tx = x * touch_w;
+	int ty = y * touch_h;
+	// ignore touches outside of virtual 4:3 screen
+	if (tx < touch_ox || tx >= touch_ox + menu_w || ty < touch_oy || ty >= touch_oy + menu_h)
+		return;
 	touch_pos_prev[0] = touch_pos[0];
 	touch_pos_prev[1] = touch_pos[1];
-	// in switch-sdl2, touch position is always in tablet screen coordinates
-	// so we assume 1280x720
-	touch_pos[0] = x * 1280;
-	touch_pos[1] = y * 720;
+	touch_pos[0] = tx;
+	touch_pos[1] = ty;
 }
 
 static inline void TouchPress(bool pressed) {
