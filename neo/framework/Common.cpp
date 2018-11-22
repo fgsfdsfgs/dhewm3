@@ -51,6 +51,8 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "framework/Common.h"
 
+#include "GameCallbacks_local.h"
+
 #define	MAX_PRINT_MSG_SIZE	4096
 #define MAX_WARNING_LIST	256
 
@@ -161,6 +163,23 @@ public:
 
 	virtual int					ButtonState( int key );
 	virtual int					KeyState( int key );
+
+	// DG: hack to allow adding callbacks and exporting additional functions without breaking the game ABI
+	//     see Common.h for longer explanation...
+
+	// returns true if setting the callback was successful, else false
+	// When a game DLL is unloaded the callbacks are automatically removed from the Engine
+	// so you usually don't have to worry about that; but you can call this with cb = NULL
+	// and userArg = NULL to remove a callback manually (e.g. if userArg refers to an object you deleted)
+	virtual bool				SetCallback(idCommon::CallbackType cbt, idCommon::FunctionPointer cb, void* userArg);
+
+	// returns true if that function is available in this version of dhewm3
+	// *out_fnptr will be the function (you'll have to cast it probably)
+	// *out_userArg will be an argument you have to pass to the function, if appropriate (else NULL)
+	// NOTE: this doesn't do anything yet, but allows to add ugly mod-specific hacks without breaking the Game interface
+	virtual bool				GetAdditionalFunction(idCommon::FunctionType ft, idCommon::FunctionPointer* out_fnptr, void** out_userArg);
+
+	// DG end
 
 	void						InitGame( void );
 	void						ShutdownGame( bool reloading );
@@ -2688,6 +2707,8 @@ void idCommonLocal::UnloadGameDLL( void ) {
 	gameEdit = NULL;
 
 #endif
+
+	gameCallbacks.Reset(); // DG: these callbacks are invalid now because DLL has been unloaded
 }
 
 /*
@@ -2738,6 +2759,10 @@ static unsigned int AsyncTimer(unsigned int interval, void *) {
 	return tick - now;
 }
 
+#ifdef _WIN32
+#include "../sys/win32/win_local.h" // for Conbuf_AppendText()
+#endif // _WIN32
+
 static bool checkForHelp(int argc, char **argv)
 {
 	const char* helpArgs[] = { "--help", "-h", "-help", "-?", "/?" };
@@ -2750,48 +2775,56 @@ static bool checkForHelp(int argc, char **argv)
 		{
 			if (idStr::Icmp(arg, helpArgs[h]) == 0)
 			{
-				// TODO: use Printf() or sth instead?
-				printf("%s - http://dhewm3.org\n", ENGINE_VERSION);
-				printf("Commandline arguments:\n");
-				printf("-h or --help: Show this help\n");
-				printf("+<command> [command arguments]\n");
-				printf("  executes a command (with optional arguments)\n");
+#ifdef _WIN32
+				// write it to the Windows-only console window
+				#define WriteString(s) Conbuf_AppendText(s)
+#else // not windows
+				// write it to stdout
+				#define WriteString(s) fputs(s, stdout);
+#endif // _WIN32
+				WriteString(ENGINE_VERSION " - http://dhewm3.org\n");
+				WriteString("Commandline arguments:\n");
+				WriteString("-h or --help: Show this help\n");
+				WriteString("+<command> [command arguments]\n");
+				WriteString("  executes a command (with optional arguments)\n");
 
-				printf("\nSome interesting commands:\n");
-				printf("+map <map>\n");
-				printf("  directly loads the given level, e.g. +map game/hell1\n");
-				printf("+exec <config>\n");
-				printf("  execute the given config (mainly relevant for dedicated servers)\n");
-				printf("+disconnect\n");
-				printf("  starts the game, goes directly into main menu without showing logo video\n");
-				printf("+connect <host>[:port]\n");
-				printf("  directly connect to multiplayer server at given host/port\n");
-				printf("  e.g. +connect d3.example.com\n");
-				printf("  e.g. +connect d3.example.com:27667\n");
-				printf("  e.g. +connect 192.168.0.42:27666\n");
-				printf("+set <cvarname> <value>\n");
-				printf("  Set the given cvar to the given value, e.g. +set r_fullscreen 0\n");
-				printf("+seta <cvarname> <value>\n");
-				printf("  like +set, but also makes sure the changed cvar is saved (\"archived\") in a cfg\n");
+				WriteString("\nSome interesting commands:\n");
+				WriteString("+map <map>\n");
+				WriteString("  directly loads the given level, e.g. +map game/hell1\n");
+				WriteString("+exec <config>\n");
+				WriteString("  execute the given config (mainly relevant for dedicated servers)\n");
+				WriteString("+disconnect\n");
+				WriteString("  starts the game, goes directly into main menu without showing\n  logo video\n");
+				WriteString("+connect <host>[:port]\n");
+				WriteString("  directly connect to multiplayer server at given host/port\n");
+				WriteString("  e.g. +connect d3.example.com\n");
+				WriteString("  e.g. +connect d3.example.com:27667\n");
+				WriteString("  e.g. +connect 192.168.0.42:27666\n");
+				WriteString("+set <cvarname> <value>\n");
+				WriteString("  Set the given cvar to the given value, e.g. +set r_fullscreen 0\n");
+				WriteString("+seta <cvarname> <value>\n");
+				WriteString("  like +set, but also makes sure the changed cvar is saved (\"archived\")\n  in a cfg\n");
 
-				printf("\nSome interesting cvars:\n");
-				printf("+set fs_basepath <gamedata path>\n");
-				printf("  set path to your Doom3 game data (the directory base/ is in)\n");
-				printf("+set fs_game <modname>\n");
-				printf("  start the given addon/mod, e.g. +set fs_game d3xp\n");
+				WriteString("\nSome interesting cvars:\n");
+				WriteString("+set fs_basepath <gamedata path>\n");
+				WriteString("  set path to your Doom3 game data (the directory base/ is in)\n");
+				WriteString("+set fs_game <modname>\n");
+				WriteString("  start the given addon/mod, e.g. +set fs_game d3xp\n");
 #ifndef ID_DEDICATED
-				printf("+set r_fullscreen <0 or 1>\n");
-				printf("  start game in windowed (0) or fullscreen (1) mode\n");
-				printf("+set r_mode <modenumber>\n");
-				printf("  start game in resolution belonging to <modenumber>,\n");
-				printf("  use -1 for custom resolutions:\n");
-				printf("+set r_customWidth  <size in pixels>\n");
-				printf("+set r_customHeight <size in pixels>\n");
-				printf("  if r_mode is set to -1, these cvars allow you to specify the\n");
-				printf("  width/height of your custom resolution\n");
+				WriteString("+set r_fullscreen <0 or 1>\n");
+				WriteString("  start game in windowed (0) or fullscreen (1) mode\n");
+				WriteString("+set r_mode <modenumber>\n");
+				WriteString("  start game in resolution belonging to <modenumber>,\n");
+				WriteString("  use -1 for custom resolutions:\n");
+				WriteString("+set r_customWidth  <size in pixels>\n");
+				WriteString("+set r_customHeight <size in pixels>\n");
+				WriteString("  if r_mode is set to -1, these cvars allow you to specify the\n");
+				WriteString("  width/height of your custom resolution\n");
 #endif // !ID_DEDICATED
-				printf("\nSee https://modwiki.xnet.fi/CVars_%%28Doom_3%%29 for more cvars\n");
-				printf("See https://modwiki.xnet.fi/Commands_%%28Doom_3%%29 for more commands\n");
+				WriteString("\nSee https://modwiki.xnet.fi/CVars_%%28Doom_3%%29 for more cvars\n");
+				WriteString("See https://modwiki.xnet.fi/Commands_%%28Doom_3%%29 for more commands\n");
+
+				#undef WriteString
 
 				return true;
 			}
@@ -2810,6 +2843,11 @@ void idCommonLocal::Init( int argc, char **argv ) {
 	if(checkForHelp(argc, argv))
 	{
 		// game has been started with --help (or similar), usage message has been shown => quit
+#ifdef _WIN32
+		// this enforces that the console window is shown until the user closes it
+		// => checkForHelp() writes to the console window on Windows
+		Sys_Error(".");
+#endif // _WIN32
 		exit(1);
 	}
 
@@ -2825,7 +2863,7 @@ void idCommonLocal::Init( int argc, char **argv ) {
 #endif
 #endif
 
-	if (SDL_Init(SDL_INIT_TIMER | SDL_INIT_VIDEO))
+	if (SDL_Init(SDL_INIT_TIMER | SDL_INIT_VIDEO | SDL_INIT_JOYSTICK)) // init joystick to work around SDL 2.0.9 bug #4391
 		Sys_Error("Error while initializing SDL: %s", SDL_GetError());
 
 	Sys_InitThreads();
@@ -3183,4 +3221,60 @@ void idCommonLocal::ShutdownGame( bool reloading ) {
 
 	// shut down the file system
 	fileSystem->Shutdown( reloading );
+}
+
+// DG: below here are hacks to allow adding callbacks and exporting additional functions to the
+//     Game DLL without breaking the ABI. See Common.h for longer explanation...
+
+
+// returns true if setting the callback was successful, else false
+// When a game DLL is unloaded the callbacks are automatically removed from the Engine
+// so you usually don't have to worry about that; but you can call this with cb = NULL
+// and userArg = NULL to remove a callback manually (e.g. if userArg refers to an object you deleted)
+bool idCommonLocal::SetCallback(idCommon::CallbackType cbt, idCommon::FunctionPointer cb, void* userArg)
+{
+	switch(cbt)
+	{
+		case idCommon::CB_ReloadImages:
+			gameCallbacks.reloadImagesCB = (idGameCallbacks::ReloadImagesCallback)cb;
+			gameCallbacks.reloadImagesUserArg = userArg;
+			return true;
+
+		default:
+			Warning("Called idCommon::SetCallback() with unknown CallbackType %d!\n", cbt);
+			return false;
+	}
+}
+
+// returns true if that function is available in this version of dhewm3
+// *out_fnptr will be the function (you'll have to cast it probably)
+// *out_userArg will be an argument you have to pass to the function, if appropriate (else NULL)
+bool idCommonLocal::GetAdditionalFunction(idCommon::FunctionType ft, idCommon::FunctionPointer* out_fnptr, void** out_userArg)
+{
+	if(out_userArg != NULL)
+		*out_userArg = NULL;
+
+	if(out_fnptr == NULL)
+	{
+		Warning("Called idCommon::GetAdditionalFunction() with out_fnptr == NULL!\n");
+		return false;
+	}
+	*out_fnptr = NULL;
+
+	// NOTE: this doesn't do anything yet, but allows to later add ugly mod-specific hacks without breaking the Game interface
+
+	return false;
+}
+
+
+idGameCallbacks gameCallbacks;
+
+idGameCallbacks::idGameCallbacks()
+: reloadImagesCB(NULL), reloadImagesUserArg(NULL)
+{}
+
+void idGameCallbacks::Reset()
+{
+	reloadImagesCB = NULL;
+	reloadImagesUserArg = NULL;
 }
