@@ -76,6 +76,7 @@ NX_Exit
 */
 void NX_Exit(int ret) {
 	socketExit();
+	appletUnlockExit();
 	// in case of signal, handler tries a common->Quit
 	// we use set_exit to maintain a correct exit code
 	if ( set_exit ) {

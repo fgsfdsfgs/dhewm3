@@ -139,6 +139,8 @@ main
 #define MAX_FAKEARGS 32
 
 int main(int argc, char **argv) {
+	appletLockExit();
+
 	socketInitializeDefault();
 #if defined(DEBUG) || defined(NXLINK_DEBUG)
 	nxlinkStdio();
@@ -178,5 +180,12 @@ int main(int argc, char **argv) {
 	while ( appletMainLoop() ) {
 		common->Frame();
 	}
+
+	// we drop from the main loop when the user quits via the HOME button
+	// because of appletLockExit, so we gotta deinit shit properly
+
+	printf("clean exit\n");
+	common->Quit();
+
 	return 0;
 }
