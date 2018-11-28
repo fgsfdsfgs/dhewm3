@@ -69,12 +69,70 @@ idCVar com_pid( "com_pid", "0", CVAR_INTEGER | CVAR_INIT | CVAR_SYSTEM, "process
 static int set_exit = 0;
 static char exit_spawn[ 1024 ] = { 0 };
 
+// overclock mode stuff
+
+idCVar nx_overclock(
+	"nx_overclock", "0", CVAR_INTEGER | CVAR_SYSTEM | CVAR_ARCHIVE,
+	"Switch overclock level: 0 - none, 1 - low, 2 - med, 3 - max"
+);
+
+static bool clock_changed = false;
+static u32 old_clock_gpu, old_clock_cpu, old_clock_emc;
+static constexpr u32 oc_clock_cpu[] = { 1224000000, 1683000000, 1785000000 };
+static constexpr u32 oc_clock_gpu[] = { 691200000, 768000000, 768000000 };
+static constexpr u32 oc_clock_emc[] = { 1600000000, 1600000000, 1600000000 };
+
+/*
+================
+NX_UpdateOverclock
+================
+*/
+static inline void NX_ClearOverclock(void) {
+	if (clock_changed) {
+		// set old clocks
+		pcvSetClockRate(PcvModule_Cpu, old_clock_cpu);
+		pcvSetClockRate(PcvModule_Gpu, old_clock_gpu);
+		pcvSetClockRate(PcvModule_Emc, old_clock_emc);
+		clock_changed = false;
+	}
+}
+
+static inline void NX_SetOverclock(int oclevel) {
+	common->Printf( "NX_SetOverclock(%d): setting clocks to %u / %u / %u\n",
+		oclevel,
+		oc_clock_cpu[oclevel],
+		oc_clock_gpu[oclevel],
+		oc_clock_emc[oclevel]
+	);
+	// preserve old clocks to turn shit back off later
+	pcvGetClockRate(PcvModule_Cpu, &old_clock_cpu);
+	pcvGetClockRate(PcvModule_Gpu, &old_clock_gpu);
+	pcvGetClockRate(PcvModule_Emc, &old_clock_emc);
+	// set OC clocks
+	pcvSetClockRate(PcvModule_Cpu, oc_clock_cpu[oclevel]);
+	pcvSetClockRate(PcvModule_Gpu, oc_clock_gpu[oclevel]);
+	pcvSetClockRate(PcvModule_Emc, oc_clock_emc[oclevel]);
+	clock_changed = true;
+}
+
+void NX_UpdateOverclock(void) {
+	// get the cvar
+	int oclevel = cvarSystem->GetCVarInteger( "nx_overclock" ) - 1;
+	if (oclevel >= 0 && oclevel < 3)
+		NX_SetOverclock(oclevel);
+	else
+		NX_ClearOverclock();
+}
+
 /*
 ================
 NX_Exit
 ================
 */
 void NX_Exit(int ret) {
+	// clock back to old values, just in case
+	NX_ClearOverclock();
+	pcvExit();
 	socketExit();
 	appletUnlockExit();
 	// in case of signal, handler tries a common->Quit
@@ -222,6 +280,7 @@ Sys_Init
 =================
 */
 void Sys_Init( void ) {
+	
 	NX_InitConsoleInput();
 	com_pid.SetInteger( getpid() );
 	common->Printf( "pid: %d\n", com_pid.GetInteger() );
@@ -237,6 +296,7 @@ void NX_Shutdown( void ) {
 	for ( int i = 0; i < COMMAND_HISTORY; i++ ) {
 		history[ i ].Clear();
 	}
+	// pcvExit();
 	// socketExit();
 }
 

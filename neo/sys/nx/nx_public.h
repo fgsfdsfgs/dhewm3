@@ -43,6 +43,8 @@ void		NX_SetExitSpawn( const char *exeName ); // set the process to be spawned w
 void		NX_InitConsoleInput( void );
 void		NX_Shutdown( void );
 
+void		NX_UpdateOverclock(void);
+
 void		Sys_DoStartProcess( const char *exeName, bool dofork = true ); // if not forking, current process gets replaced
 
 #endif
