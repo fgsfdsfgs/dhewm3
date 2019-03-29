@@ -71,7 +71,13 @@ bool Sys_GetPath(sysPath_t type, idStr &path) {
 				common->Warning("using path of executable: %s", path.c_str());
 				return true;
 			} else {
-				path.Clear();
+				idStr testPath = path + "/demo/demo00.pk4";
+				if(stat(testPath.c_str(), &st) != -1 && S_ISREG(st.st_mode)) {
+					common->Warning("using path of executable (seems to contain demo game data): %s", path.c_str());
+					return true;
+				} else {
+					path.Clear();
+				}
 			}
 		}
 
@@ -294,6 +300,8 @@ int main(int argc, char **argv) {
 	// etc when using a locale that uses ',' as a float radix.
 	// so set $LC_ALL to "C".
 	setenv("LC_ALL", "C", 1);
+
+	Posix_InitSignalHandlers();
 
 	if ( argc > 1 ) {
 		common->Init( argc-1, &argv[1] );

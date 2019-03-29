@@ -41,7 +41,7 @@ If you have questions concerning this license or the applicable additional terms
 #define GAME_NAME						"dhewm 3"		// appears on window titles and errors
 #endif
 
-#define ENGINE_VERSION					"dhewm3 1.5.0rc2"	// printed in console
+#define ENGINE_VERSION					"dhewm3 1.5.1pre"	// printed in console
 
 // paths
 #define	BASE_GAMEDIR					"base"
@@ -97,7 +97,9 @@ If you have questions concerning this license or the applicable additional terms
 #define WIN32_CONSOLE_CLASS				"dhewm 3 WinConsole"
 
 // Linux info
+#ifndef LINUX_DEFAULT_PATH // allow overriding it from the build system with -DLINUX_DEFAULT_PATH="/bla/foo/whatever"
 #define LINUX_DEFAULT_PATH				"/usr/local/games/doom3"
+#endif
 
 // CD Key file info
 // goes into BASE_GAMEDIR whatever the fs_game is set to

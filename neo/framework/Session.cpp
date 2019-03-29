@@ -48,7 +48,7 @@ If you have questions concerning this license or the applicable additional terms
 idCVar	idSessionLocal::com_showAngles( "com_showAngles", "0", CVAR_SYSTEM | CVAR_BOOL, "" );
 idCVar	idSessionLocal::com_minTics( "com_minTics", "1", CVAR_SYSTEM, "" );
 idCVar	idSessionLocal::com_showTics( "com_showTics", "0", CVAR_SYSTEM | CVAR_BOOL, "" );
-idCVar	idSessionLocal::com_fixedTic( "com_fixedTic", "0", CVAR_SYSTEM | CVAR_INTEGER, "", 0, 10 );
+idCVar	idSessionLocal::com_fixedTic( "com_fixedTic", "0", CVAR_SYSTEM | CVAR_INTEGER | CVAR_ARCHIVE, "", -1, 10 );
 idCVar	idSessionLocal::com_showDemo( "com_showDemo", "0", CVAR_SYSTEM | CVAR_BOOL, "" );
 idCVar	idSessionLocal::com_skipGameDraw( "com_skipGameDraw", "0", CVAR_SYSTEM | CVAR_BOOL, "" );
 idCVar	idSessionLocal::com_aviDemoSamples( "com_aviDemoSamples", "16", CVAR_SYSTEM, "" );
@@ -373,6 +373,8 @@ idSessionLocal::idSessionLocal() {
 		= guiTest = guiMsg = guiMsgRestore = guiTakeNotes = NULL;
 
 	menuSoundWorld = NULL;
+
+	demoversion=false;
 
 	Clear();
 }
@@ -2891,6 +2893,10 @@ void idSessionLocal::Init() {
 
 	// we have a single instance of the main menu
 	guiMainMenu = uiManager->FindGui( "guis/mainmenu.gui", true, false, true );
+	if (!guiMainMenu) {
+		guiMainMenu = uiManager->FindGui( "guis/demo_mainmenu.gui", true, false, true );
+		demoversion = (guiMainMenu != NULL);
+	}
 	guiMainMenu_MapList = uiManager->AllocListGUI();
 	guiMainMenu_MapList->Config( guiMainMenu, "mapList" );
 	idAsyncNetwork::client.serverList.GUIConfig( guiMainMenu, "serverList" );

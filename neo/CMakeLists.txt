@@ -27,8 +27,19 @@ if(NOT COMMAND add_compile_options)
 	endfunction()
 endif()
 
+option(LINUX_RELEASE_BINS "Set RPATH to \$ORIGIN/libs/ for Linux binary releases" OFF)
+
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/sys/cmake")
-set(CMAKE_SKIP_RPATH ON CACHE BOOL "Skip RPATH" FORCE)
+
+if(LINUX_RELEASE_BINS)
+	message(STATUS "Setting RPATH to \$ORIGIN/libs/ so you can put dependencies in there")
+	set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
+	set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+	set(CMAKE_INSTALL_RPATH "$ORIGIN/libs")
+	set(ldflags "${ldflags} -Wl,-z,origin") # not sure this is even needed, but shouldn't hurt
+else()
+	set(CMAKE_SKIP_RPATH ON CACHE BOOL "Skip RPATH" FORCE)
+endif()
 
 set(DHEWM3BINARY "dhewm3")
 
@@ -38,6 +49,9 @@ include(GNUInstallDirs OPTIONAL RESULT_VARIABLE GNUINSTALLDIRS)
 option(CORE			"Build the core" ON)
 option(BASE			"Build the base game code" ON)
 option(D3XP			"Build the d3xp game code" ON)
+if(MSVC)
+	option(TOOLS		"Build the tools game code (Windows+Visual Studio+SDL2 only)" OFF)
+endif()
 option(DEDICATED	"Build the dedicated server" OFF)
 option(ONATIVE		"Optimize for the host CPU" OFF)
 option(SDL2			"Use SDL2 instead of SDL1.2" ON)
@@ -110,11 +124,6 @@ include_directories(${VORBISFILE_INCLUDE_DIR})
 find_package(OpenAL REQUIRED)
 include_directories(${OPENAL_INCLUDE_DIR})
 
-if(NOT AROS)
-	find_package(X11 REQUIRED)
-	include_directories(${X11_INCLUDE_DIR})
-endif()
-
 if (SDL2)
 	# skip SDL2main
 	if(APPLE OR WIN32)
@@ -141,6 +150,16 @@ else()
 	message(STATUS "libcurl not found, server downloads won't be available")
 	set(ID_ENABLE_CURL OFF)
 	set(CURL_LIBRARY "")
+endif()
+
+if(MSVC)
+	# This is required for tools on windows.
+	find_package(MFC)
+	
+	if(TOOLS AND NOT MFC_FOUND)
+		message(SEND_ERROR "MFC ('Microsoft Foundation Classes for C++') couldn't be found, but is needed for TOOLS!")
+		message(FATAL_ERROR "If you're using VS2013, you'll also need the 'Multibyte MFC Library for Visual Studio 2013': https://www.microsoft.com/en-us/download/details.aspx?id=40770 (VS2015 and 2017 include that in the default MFC package)")
+	endif()
 endif()
 
 # compiler specific flags
@@ -191,8 +210,8 @@ if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
 		add_definitions(-DMACOS_X=1)
 
 		if(cpu STREQUAL "x86_64")
-			add_compile_options(-arch x86_64 -mmacosx-version-min=10.6)
-			set(ldflags "${ldflags} -arch x86_64 -mmacosx-version-min=10.6")
+			add_compile_options(-arch x86_64 -mmacosx-version-min=10.9)
+			set(ldflags "${ldflags} -arch x86_64 -mmacosx-version-min=10.9")
 		elseif(cpu STREQUAL "x86")
 			CHECK_CXX_COMPILER_FLAG("-arch i386" cxx_has_arch_i386)
 			if(cxx_has_arch_i386)
@@ -220,9 +239,15 @@ if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
 		set(ldflags "${ldflags} -static-libgcc -static-libstdc++")
 	elseif(os STREQUAL "linux")
 		set(sys_libs ${sys_libs} dl)
+	elseif(os STREQUAL "freebsd")
+		find_library(EXECINFO_LIBRARIES execinfo /usr/lib /usr/local/lib)
+		set(sys_libs ${sys_libs} ${EXECINFO_LIBRARIES})
 	endif()
 elseif(MSVC)
+	add_definitions(/MP) # parallel build (use all cores, or as many as configured in VS)
+	
 	add_compile_options(/W4)
+	add_compile_options(/we4840) # treat as error when passing a class to a vararg-function (probably printf-like)
 	add_compile_options(/wd4100) # unreferenced formal parameter
 	add_compile_options(/wd4127) # conditional expression is constant
 	add_compile_options(/wd4244) # possible loss of data
@@ -352,6 +377,17 @@ set(src_renderer
 	renderer/tr_turboshadow.cpp
 )
 
+# I'm a bit sloppy with headers and just glob them in..
+# they're only handled in CMake at all so they turn up in Visual Studio solutions..
+
+# globs all the headers from ${PATHPREFIX}/ and adds them to ${SRCLIST}
+function(add_globbed_headers SRCLIST PATHPREFIX)
+	file(GLOB_RECURSE tmp_hdrs RELATIVE "${CMAKE_SOURCE_DIR}" "${PATHPREFIX}/*.h")
+	set(${SRCLIST} ${tmp_hdrs} ${${SRCLIST}} PARENT_SCOPE)
+endfunction()
+
+add_globbed_headers(src_renderer "renderer")
+
 set(src_framework
 	framework/CVarSystem.cpp
 	framework/CmdSystem.cpp
@@ -385,6 +421,8 @@ set(src_framework
 	framework/minizip/unzip.cpp
 )
 
+add_globbed_headers(src_framework "framework")
+
 set(src_cm
 	cm/CollisionModel_contacts.cpp
 	cm/CollisionModel_contents.cpp
@@ -395,6 +433,8 @@ set(src_cm
 	cm/CollisionModel_trace.cpp
 	cm/CollisionModel_translate.cpp
 )
+
+add_globbed_headers(src_cm "cm")
 
 set(src_dmap
 	tools/compilers/dmap/dmap.cpp
@@ -413,6 +453,8 @@ set(src_dmap
 	tools/compilers/dmap/usurface.cpp
 )
 
+add_globbed_headers(src_dmap "tools/compilers/dmap")
+
 set(src_aas
 	tools/compilers/aas/AASBuild.cpp
 	tools/compilers/aas/AASBuild_file.cpp
@@ -429,6 +471,8 @@ set(src_aas
 	tools/compilers/aas/BrushBSP.cpp
 )
 
+add_globbed_headers(src_aas "tools/compilers/aas")
+
 set(src_roq
 	tools/compilers/roqvq/NSBitmapImageRep.cpp
 	tools/compilers/roqvq/codec.cpp
@@ -436,9 +480,13 @@ set(src_roq
 	tools/compilers/roqvq/roqParam.cpp
 )
 
+add_globbed_headers(src_roq "tools/compilers/roqvq")
+
 set(src_renderbump
 	tools/compilers/renderbump/renderbump.cpp
 )
+
+add_globbed_headers(src_renderbump "tools/compilers/renderbump")
 
 set(src_snd
 	sound/snd_cache.cpp
@@ -450,6 +498,8 @@ set(src_snd
 	sound/snd_wavefile.cpp
 	sound/snd_world.cpp
 )
+
+add_globbed_headers(src_snd "sound")
 
 set(src_ui
 	ui/BindWindow.cpp
@@ -473,9 +523,7 @@ set(src_ui
 	ui/Winvar.cpp
 )
 
-set(src_tools
-	tools/guied/GEWindowWrapper_stub.cpp
-)
+add_globbed_headers(src_ui "ui")
 
 set(src_idlib
 	idlib/bv/Bounds.cpp
@@ -527,6 +575,8 @@ set(src_idlib
 	idlib/Timer.cpp
 	idlib/Heap.cpp
 )
+
+add_globbed_headers(src_idlib "idlib")
 
 set(src_game
 	game/AF.cpp
@@ -599,6 +649,8 @@ set(src_game
 	game/physics/Physics_StaticMulti.cpp
 	game/physics/Push.cpp
 )
+
+add_globbed_headers(src_game "game")
 
 set(src_d3xp
 	d3xp/AF.cpp
@@ -674,6 +726,8 @@ set(src_d3xp
 	d3xp/physics/Force_Grab.cpp
 )
 
+add_globbed_headers(src_d3xp "d3xp")
+
 set(src_core
 	${src_renderer}
 	${src_framework}
@@ -689,6 +743,80 @@ set(src_core
 
 set(src_stub_openal		sys/stub/openal_stub.cpp)
 set(src_stub_gl			sys/stub/stub_gl.cpp)
+
+
+set(src_tools
+	tools/guied/GEWindowWrapper_stub.cpp
+)
+
+# TODO: add_globbed_headers(src_tools "tools/guied")
+
+# Begin normal tools code
+if (TOOLS AND MFC_FOUND AND MSVC)
+	set(ALLOWRESOURCES ON)
+	# Common files.
+	file(GLOB src_comafx "tools/comafx/*.cpp")
+	add_globbed_headers(src_comafx "tools/comafx")
+	file(GLOB_RECURSE src_tools_common "tools/common/*.cpp")
+	add_globbed_headers(src_tools_common "tools/common")
+
+	#Compilers.
+	# DG: this is always added, why add it again? file(GLOB src_compiler_renderbump "neo/tools/compilers/renderbump/*.cpp")
+	file(GLOB src_compiler_roqvq	  "tools/compilers/roqvq/*.cpp") # FIXME: some of those were added before
+	add_globbed_headers(src_compiler_roqvq "tools/compilers/roqvq")
+	#tools
+	# Articulated Frame editor.
+	file(GLOB src_afeditor "tools/af/*.cpp")
+	add_globbed_headers(src_afeditor "tools/af")
+	# Declaration editor
+	file(GLOB src_decleditor "tools/decl/*.cpp")
+	add_globbed_headers(src_decleditor "tools/decl")
+	# GUI Editor.
+	file(GLOB src_gui_editor "tools/guied/*.cpp")
+	add_globbed_headers(src_gui_editor "tools/guied")
+	# Material editor
+	file(GLOB src_materialeditor "tools/materialeditor/*.cpp")
+	add_globbed_headers(src_materialeditor "tools/materialeditor")
+	# Particle Editor
+	file(GLOB src_particleeditor "tools/particle/*.cpp")
+	add_globbed_headers(src_particleeditor "tools/particle")
+	# PDA editor
+	file(GLOB src_pdaeditor "tools/pda/*.cpp")
+	add_globbed_headers(src_pdaeditor "tools/pda")
+	# Radiant ( Map editor )
+	file(GLOB src_map_editor "tools/radiant/*.cpp")
+	add_globbed_headers(src_map_editor "tools/radiant")
+	# Script editor
+	file(GLOB src_script_editor "tools/script/*.cpp")
+	add_globbed_headers(src_script_editor "tools/script")
+	# sound editor?
+	file(GLOB src_sound_editor "tools/sound/*.cpp")
+	add_globbed_headers(src_sound_editor "tools/sound")
+	
+
+	# The numerous tools in a nice list.
+	list(APPEND src_editor_tools
+		${src_comafx}
+		${src_tools_common}
+		${src_compiler_renderbump}
+		${src_afeditor}
+		${src_decleditor}
+		${src_gui_editor}
+		${src_materialeditor}
+		${src_particleeditor}
+		${src_pdaeditor}
+		${src_map_editor}
+		${src_script_editor}
+		${src_sound_editor}
+		"tools/edit_public.h"
+		"tools/edit_gui_common.h"
+		)
+	SET(CMAKE_MFC_FLAG 2)
+	set(TOOLS_DEFINES "ID_ALLOW_TOOLS;__AFXDLL")
+else()
+	set(src_editor_tools "tools/edit_stub.cpp" "tools/edit_public.h")
+endif()
+
 
 if(AROS)
 	set(DHEWM3BINARY "ADoom3")
@@ -739,9 +867,6 @@ elseif(APPLE)
 		${OSX_RESOURCE_FILES}
 	)
 elseif(WIN32)
-	set(WIN32_RESOURCE_FILES
-		"${CMAKE_SOURCE_DIR}/sys/win32/rc/dhewm3.rc"
-	)
 
 	set(src_sys_base
 		sys/cpu.cpp
@@ -756,10 +881,26 @@ elseif(WIN32)
 		sys/win32/SDL_win32_main.c
 	)
 
+	# adding the few relevant headers in sys/ manually..
+	set(src_sys_base ${src_sys_base}
+		sys/platform.h
+		sys/sys_local.h
+		sys/sys_public.h
+		sys/win32/win_local.h
+	)
+
 	set(src_sys_core
 		sys/glimp.cpp
-		${WIN32_RESOURCE_FILES}
 	)
+
+	if(TOOLS)
+		set(src_sys_core ${src_sys_core} "sys/win32/rc/doom.rc")
+	else()
+		# adding both .rc files breaks the build, but I think it only contains the icon
+		# and doom.rc also contains that (+icons for editor etc, AFAIK), so this is fine
+		set(src_sys_core ${src_sys_core} "${CMAKE_SOURCE_DIR}/sys/win32/rc/dhewm3.rc" )
+	endif()
+
 else()
 	set(src_sys_base
 		sys/cpu.cpp
@@ -793,14 +934,19 @@ else()
 	endif()
 endif()
 
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} PREFIX neo FILES ${src_idlib})
+
 if(CORE)
 	add_executable(${DHEWM3BINARY} WIN32 MACOSX_BUNDLE
 		${src_core}
 		${src_sys_base}
 		${src_sys_core}
+		${src_editor_tools}
 	)
 
-	set_target_properties(${DHEWM3BINARY} PROPERTIES COMPILE_DEFINITIONS "__DOOM_DLL__")
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} PREFIX neo FILES ${src_core} ${src_sys_base} ${src_sys_core} ${src_editor_tools})
+
+	set_target_properties(${DHEWM3BINARY} PROPERTIES COMPILE_DEFINITIONS "__DOOM_DLL__;${TOOLS_DEFINES}")
 	set_target_properties(${DHEWM3BINARY} PROPERTIES LINK_FLAGS "${ldflags}")
 	set_target_properties(${DHEWM3BINARY} PROPERTIES MACOSX_BUNDLE_INFO_PLIST ${PROJECT_SOURCE_DIR}/sys/osx/Info.plist)
 
@@ -833,6 +979,8 @@ if(DEDICATED)
 		${src_stub_gl}
 		${src_sys_base}
 	)
+	
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} PREFIX neo FILES ${src_core} ${src_sys_base} ${src_stub_openal} ${src_stub_gl})
 
 	set_target_properties(${DHEWM3BINARY}ded PROPERTIES COMPILE_DEFINITIONS "ID_DEDICATED;__DOOM_DLL__")
 	set_target_properties(${DHEWM3BINARY}ded PROPERTIES LINK_FLAGS "${ldflags}")
@@ -864,9 +1012,12 @@ if(BASE)
 	else()
 		add_library(base SHARED ${src_game})
 	endif()
+	
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} PREFIX neo FILES ${src_game})
+	
 	set_target_properties(base PROPERTIES PREFIX "")
 	set_target_properties(base PROPERTIES COMPILE_DEFINITIONS "GAME_DLL")
-	set_target_properties(base PROPERTIES COMPILE_FLAGS "-I${CMAKE_SOURCE_DIR}/game")
+	target_include_directories(base PRIVATE "${CMAKE_SOURCE_DIR}/game")
 	set_target_properties(base PROPERTIES LINK_FLAGS "${ldflags}")
 	set_target_properties(base PROPERTIES INSTALL_NAME_DIR "@executable_path")
 	if (AROS)
@@ -891,9 +1042,10 @@ if(D3XP)
 	else()
 		add_library(d3xp SHARED ${src_d3xp})
 	endif()
+	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} PREFIX neo FILES ${src_d3xp})
 	set_target_properties(d3xp PROPERTIES PREFIX "")
 	set_target_properties(d3xp PROPERTIES COMPILE_DEFINITIONS "GAME_DLL;_D3XP;CTF")
-	set_target_properties(d3xp PROPERTIES COMPILE_FLAGS "-I${CMAKE_SOURCE_DIR}/d3xp")
+	target_include_directories(d3xp PRIVATE "${CMAKE_SOURCE_DIR}/d3xp")
 	set_target_properties(d3xp PROPERTIES LINK_FLAGS "${ldflags}")
 	set_target_properties(d3xp PROPERTIES INSTALL_NAME_DIR "@executable_path")
 	if (AROS)
