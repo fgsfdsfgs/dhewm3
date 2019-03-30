@@ -32,7 +32,7 @@ include $(DEVKITPRO)/libnx/switch_rules
 #---------------------------------------------------------------------------------
 
 APP_AUTHOR	:=	fgsfds
-APP_VERSION	:=	0.1.0
+APP_VERSION	:=	0.2.0
 
 ifeq ($(D3XP),ON)
 	TARGET		:=	dhewm3nx_xp
@@ -61,8 +61,8 @@ endif
 #---------------------------------------------------------------------------------
 ARCH	:=	-march=armv8-a -mtune=cortex-a57 -mtp=soft -fPIE -mcpu=cortex-a57+crc+fp+simd
 
-COMMON_CFLAGS	:=	-g -O3 \
-			-ffast-math -fno-unsafe-math-optimizations -fno-strict-aliasing -fvisibility=hidden -fomit-frame-pointer \
+COMMON_CFLAGS	:=	-O3 -ffast-math \
+			-fno-unsafe-math-optimizations -fno-strict-aliasing -fvisibility=hidden -fomit-frame-pointer \
 			-Wno-sign-compare -Wno-switch -Wno-format-security \
 			$(ARCH) $(DEFINES)
 
@@ -81,7 +81,8 @@ CXXFLAGS	:= $(COMMON_CFLAGS) -fexceptions -frtti -Woverloaded-virtual -std=gnu++
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-LIBS	:= -lopenal-soft -lSDL2 -lEGL -lglapi -ldrm_nouveau -lvorbisfile -lvorbis -logg -ljpeg -lcurl -lz -lnx -lm
+LIBS	:= -lopenal-soft -lSDL2main -lSDL2 -lEGL -lglapi -ldrm_nouveau -lvorbisfile -lvorbis -logg \
+		-ljpeg -lcurl -lmbedtls -lmbedx509 -lmbedcrypto -lpthread -lz -lnx -lm -lstdc++
 
 #---------------------------------------------------------------------------------
 # source files
@@ -311,7 +312,7 @@ SRC_GLAD	:= glad41/glad.c
 SRC_SYS	:=\
 	sys/cpu.cpp \
 	sys/sys_local.cpp \
-	sys/nx/nx_threads.cpp \
+	sys/threads.cpp \
 	sys/nx/nx_events.cpp \
 	sys/nx/nx_net.cpp \
 	sys/nx/nx_main.cpp \

@@ -40,12 +40,10 @@ idCVar r_waylandcompat("r_waylandcompat", "0", CVAR_SYSTEM | CVAR_NOCHEAT | CVAR
 
 static bool grabbed = false;
 
-static SDL_Window *window = NULL;
-static SDL_Renderer *renderer = NULL;
-
 static EGLDisplay s_display;
 static EGLSurface s_surface;
 static EGLContext s_context;
+static NWindow *s_win;
 
 /*
 ===============
@@ -69,8 +67,10 @@ static void SetMesaConfig(void) {
 	// setenv("MESA_GL_VERSION_OVERRIDE", "3.2COMPAT", 1);
 }
 
-static bool InitEGL(void) {
+static bool InitEGL(NWindow *win) {
 	SetMesaConfig();
+
+	s_win = win;
 
 	// Connect to the EGL default display
 	s_display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
@@ -95,6 +95,7 @@ static bool InitEGL(void) {
 		EGL_GREEN_SIZE, 8,
 		EGL_BLUE_SIZE, 8,
 		EGL_DEPTH_SIZE, 24,
+		EGL_STENCIL_SIZE, 8,
 		EGL_NONE
 	};
 	eglChooseConfig(s_display, attributeList, &config, 1, &numConfigs);
@@ -104,7 +105,7 @@ static bool InitEGL(void) {
 	}
 
 	// Create an EGL window surface
-	s_surface = eglCreateWindowSurface(s_display, config, (char*)"", NULL);
+	s_surface = eglCreateWindowSurface(s_display, config, win, NULL);
 	if (!s_surface) {
 		common->Warning( "Surface creation failed! error: %d", eglGetError() );
 		goto _fail1;
@@ -133,10 +134,11 @@ _fail1:
 	eglTerminate(s_display);
 	s_display = NULL;
 _fail0:
+	s_win = NULL;
 	return false;
 }
 
-static void DeinitEGL (void)
+static void DeinitEGL(void)
 {
 	if (s_display)
 	{
@@ -153,6 +155,7 @@ static void DeinitEGL (void)
 		}
 		eglTerminate(s_display);
 		s_display = NULL;
+		s_win = NULL;
 	}
 }
 
@@ -164,30 +167,15 @@ GLimp_Init
 bool GLimp_Init(glimpParms_t parms) {
 	common->Printf("Initializing OpenGL subsystem\n");
 
-	assert(SDL_WasInit(SDL_INIT_VIDEO));
-
-	Uint32 flags = SDL_WINDOW_OPENGL;
-
-	if (parms.fullScreen)
-		flags |= SDL_WINDOW_FULLSCREEN;
+	// assert(SDL_WasInit(SDL_INIT_VIDEO));
 
 	int colorbits = 24;
 	int depthbits = 24;
 	int stencilbits = 8;
 
-	if (!window) {
-		window = SDL_CreateWindow(GAME_NAME,
-									SDL_WINDOWPOS_UNDEFINED,
-									SDL_WINDOWPOS_UNDEFINED,
-									1280, 720, flags);
-		if (!window)
-			common->DPrintf("Couldn't create SDL window: %s", SDL_GetError());
-
-		renderer = SDL_CreateRenderer( window, -1, 0 );
-		if (!renderer)
-			common->DPrintf("Couldn't create SDL renderer: %s", SDL_GetError());
-
-		InitEGL();
+	if (!s_display) {
+		if (!InitEGL(nwindowGetDefault()))
+			common->Warning("Could not init EGL: %s\n", eglGetError());
 		gladLoadGL();
 	}
 
@@ -196,6 +184,8 @@ bool GLimp_Init(glimpParms_t parms) {
 	glConfig.vidWidth = 1280;
 	glConfig.vidHeight = 720;
 	glConfig.isFullscreen = true;
+
+	if (s_win) nwindowSetCrop(s_win, 0, 0, glConfig.vidWidth, glConfig.vidHeight);
 
 	common->Printf("Using %d color bits, %d depth, %d stencil display\n",
 					colorbits, depthbits, stencilbits);
@@ -206,7 +196,7 @@ bool GLimp_Init(glimpParms_t parms) {
 
 	glConfig.displayFrequency = 0;
 
-	if (!window) {
+	if (!s_display) {
 		common->Warning("No usable GL mode found: %s", SDL_GetError());
 		return false;
 	}
@@ -231,7 +221,7 @@ GLimp_Shutdown
 */
 void GLimp_Shutdown() {
 	common->Printf("Shutting down OpenGL subsystem\n");
-	// TODO: figure out when we're shutting down completely and call DeinitEGL()
+	DeinitEGL();
 }
 
 /*
@@ -276,7 +266,7 @@ GLimp_ExtensionPointer
 ===================
 */
 GLExtension_t GLimp_ExtensionPointer(const char *name) {
-	assert(SDL_WasInit(SDL_INIT_VIDEO));
+	// assert(SDL_WasInit(SDL_INIT_VIDEO));
 
 	return (GLExtension_t)eglGetProcAddress(name);
 }

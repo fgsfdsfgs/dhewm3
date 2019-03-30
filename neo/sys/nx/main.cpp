@@ -27,6 +27,7 @@ If you have questions concerning this license or the applicable additional terms
 */
 
 #include <switch.h>
+#include <SDL.h>
 #include <errno.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -41,7 +42,7 @@ If you have questions concerning this license or the applicable additional terms
 
 #include <locale.h>
 
-static char path_argv[MAX_OSPATH];
+static char path_argv[256];
 
 bool Sys_GetPath(sysPath_t type, idStr &path) {
 	path.Clear();
@@ -134,49 +135,38 @@ void idSysLocal::OpenURL( const char *url, bool quit ) {
 main
 ===============
 */
-#define MAX_FAKEARGS 32
+
+#ifdef _D3XP
+static int fake_argc = 3;
+static char *fake_argv[] = {
+  (char *)"+set",
+  (char *)"fs_game",
+  (char *)"d3xp",
+  nullptr
+};
+#else
+static int fake_argc = 0;
+static char *fake_argv[] = {
+  nullptr
+};
+#endif
 
 int main(int argc, char **argv) {
-	appletLockExit();
-
 	pcvInitialize();
 	socketInitializeDefault();
 #if defined(DEBUG) || defined(NXLINK_DEBUG)
 	nxlinkStdio();
 #endif
 
-	strncpy( path_argv, "/switch/dhewm3", MAX_OSPATH );
+	if (SDL_Init(SDL_INIT_TIMER | SDL_INIT_EVENTS) < 0)
+		Sys_Error("Error while initializing SDL: %s", SDL_GetError());
 
-	// dirtily inject args if needed
-	static char *fake_argv[MAX_FAKEARGS + 1] = { NULL };
-	int fake_argc = argc;
-	for (int i = 0; i < argc && i < MAX_FAKEARGS; ++i)
-		fake_argv[i] = argv[i];
-#ifdef _D3XP
-	// load RoE by default if present, until I can figure out a better way to do this
-	if (fake_argc + 3 < MAX_FAKEARGS) {
-		fake_argv[fake_argc++] = (char *)"+set";
-		fake_argv[fake_argc++] = (char *)"fs_game";
-		fake_argv[fake_argc++] = (char *)"d3xp";
-	}
-#endif
-#if defined(DEBUG) || defined(NXLINK_DEBUG)
-	// enable developer mode when debug is enabled
-	if (fake_argc + 3 < MAX_FAKEARGS) {
-		fake_argv[fake_argc++] = (char *)"+set";
-		fake_argv[fake_argc++] = (char *)"developer";
-		fake_argv[fake_argc++] = (char *)"1";
-	}
-#endif
-	fake_argv[fake_argc] = NULL;
-
-	if ( fake_argc > 1 ) {
-		common->Init( fake_argc-1, &fake_argv[1] );
-	} else {
-		common->Init( 0, NULL );
-	}
+	strncpy( path_argv, "/switch/dhewm3", sizeof(path_argv)-1 );
+	common->Init( fake_argc, fake_argv );
 
 	NX_UpdateOverclock();
+
+	appletLockExit();
 
 	while ( appletMainLoop() ) {
 		common->Frame();

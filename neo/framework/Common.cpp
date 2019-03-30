@@ -2865,8 +2865,10 @@ void idCommonLocal::Init( int argc, char **argv ) {
 #endif
 #endif
 
+#ifndef __SWITCH__
 	if (SDL_Init(SDL_INIT_TIMER | SDL_INIT_VIDEO | SDL_INIT_JOYSTICK)) // init joystick to work around SDL 2.0.9 bug #4391
 		Sys_Error("Error while initializing SDL: %s", SDL_GetError());
+#endif
 
 	Sys_InitThreads();
 
@@ -2972,11 +2974,7 @@ void idCommonLocal::Init( int argc, char **argv ) {
 		Sys_Error( "Error during initialization" );
 	}
 
-#ifdef __SWITCH__
-	async_timer = Sys_StartTimer(USERCMD_MSEC, AsyncTimer, NULL);
-#else
 	async_timer = SDL_AddTimer(USERCMD_MSEC, AsyncTimer, NULL);
-#endif
 
 	if (!async_timer)
 		Sys_Error("Error while starting the async timer: %s", SDL_GetError());
@@ -2990,11 +2988,7 @@ idCommonLocal::Shutdown
 */
 void idCommonLocal::Shutdown( void ) {
 	if (async_timer) {
-#ifdef __SWITCH__
-		Sys_StopTimer();
-#else
 		SDL_RemoveTimer(async_timer);
-#endif
 		async_timer = 0;
 	}
 

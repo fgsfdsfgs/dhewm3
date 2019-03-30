@@ -488,6 +488,15 @@ static inline bool TouchGenerateEvents(void) {
 	return ret;
 }
 
+// FIXME: this is really, really fucking bad but I can't init video for some reason
+// so we'll have to do with calling private SDL functions yet again
+extern "C" {
+	void SWITCH_InitTouch(void);
+	void SWITCH_PollTouch();
+	void SWITCH_PollKeyboard();
+	void SWITCH_PollMouse();
+}
+
 /*
 =================
 Sys_InitInput
@@ -497,7 +506,11 @@ void Sys_InitInput() {
 	kbd_polls.SetGranularity(64);
 	mouse_polls.SetGranularity(64);
 
-	SDL_InitSubSystem(SDL_INIT_JOYSTICK);
+	if (!SDL_WasInit(SDL_INIT_JOYSTICK)) {
+		SDL_InitSubSystem(SDL_INIT_JOYSTICK);
+		SWITCH_InitTouch();
+	}
+
 	SDL_JoystickOpen(0);
 	SDL_JoystickOpen(1);
 
@@ -512,7 +525,8 @@ Sys_ShutdownInput
 void Sys_ShutdownInput() {
 	kbd_polls.Clear();
 	mouse_polls.Clear();
-	SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
+	if (SDL_WasInit(SDL_INIT_JOYSTICK))
+		SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
 }
 
 /*
@@ -865,6 +879,11 @@ void Sys_GenerateEvents() {
 
 	if (s)
 		PushConsoleEvent(s);
+
+	hidScanInput();
+	SWITCH_PollTouch();
+	SWITCH_PollKeyboard();
+	SWITCH_PollMouse();
 
 	JoyGenerateEvents();
 	TouchGenerateEvents();
