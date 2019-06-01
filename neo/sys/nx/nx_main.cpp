@@ -90,9 +90,9 @@ NX_UpdateOverclock
 static inline void NX_ClearOverclock(void) {
 	if (clock_changed) {
 		// set old clocks
-		pcvSetClockRate(PcvModule_Cpu, old_clock_cpu);
-		pcvSetClockRate(PcvModule_Gpu, old_clock_gpu);
-		pcvSetClockRate(PcvModule_Emc, old_clock_emc);
+		pcvSetClockRate(PcvModule_CpuBus, old_clock_cpu);
+		pcvSetClockRate(PcvModule_GPU, old_clock_gpu);
+		pcvSetClockRate(PcvModule_EMC, old_clock_emc);
 		clock_changed = false;
 	}
 }
@@ -105,13 +105,13 @@ static inline void NX_SetOverclock(int oclevel) {
 		oc_clock_emc[oclevel]
 	);
 	// preserve old clocks to turn shit back off later
-	pcvGetClockRate(PcvModule_Cpu, &old_clock_cpu);
-	pcvGetClockRate(PcvModule_Gpu, &old_clock_gpu);
-	pcvGetClockRate(PcvModule_Emc, &old_clock_emc);
+	pcvGetClockRate(PcvModule_CpuBus, &old_clock_cpu);
+	pcvGetClockRate(PcvModule_GPU, &old_clock_gpu);
+	pcvGetClockRate(PcvModule_EMC, &old_clock_emc);
 	// set OC clocks
-	pcvSetClockRate(PcvModule_Cpu, oc_clock_cpu[oclevel]);
-	pcvSetClockRate(PcvModule_Gpu, oc_clock_gpu[oclevel]);
-	pcvSetClockRate(PcvModule_Emc, oc_clock_emc[oclevel]);
+	pcvSetClockRate(PcvModule_CpuBus, oc_clock_cpu[oclevel]);
+	pcvSetClockRate(PcvModule_GPU, oc_clock_gpu[oclevel]);
+	pcvSetClockRate(PcvModule_EMC, oc_clock_emc[oclevel]);
 	clock_changed = true;
 }
 
@@ -270,7 +270,13 @@ NX_Cwd
 ================
 */
 const char *NX_Cwd( void ) {
-	static const char *cwd = "/switch/dhewm3";
+	static char cwd[MAX_OSPATH];
+
+	if (getcwd( cwd, sizeof( cwd ) - 1 ))
+		cwd[MAX_OSPATH-1] = 0;
+	else
+		cwd[0] = 0;
+
 	return cwd;
 }
 

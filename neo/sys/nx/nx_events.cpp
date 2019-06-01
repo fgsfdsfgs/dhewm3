@@ -37,6 +37,8 @@ If you have questions concerning this license or the applicable additional terms
 #include "framework/Session_local.h"
 #include "renderer/RenderSystem.h"
 #include "renderer/tr_local.h"
+#include "ui/DeviceContext.h"
+#include "ui/UserInterface.h"
 
 #include "sys/sys_public.h"
 
@@ -65,6 +67,7 @@ const char *kbdNames[] = {
 };
 
 idCVar in_kbd("in_kbd", "english", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_NOCHEAT, "keyboard layout", kbdNames, idCmdSystem::ArgCompletion_String<kbdNames> );
+extern idCVar r_scaleMenusTo43; // DG: for the "scale menus to 4:3" hack
 
 struct kbd_poll_t {
 	int key;
@@ -92,6 +95,23 @@ struct mouse_poll_t {
 	}
 };
 
+struct joystick_poll_t
+{
+	int axis;
+	int value;
+	
+	joystick_poll_t()
+	{
+	}
+	
+	joystick_poll_t( int a, int v )
+	{
+		axis = a;
+		value = v;
+	}
+};
+
+static idList<joystick_poll_t> joystick_polls;
 static idList<kbd_poll_t> kbd_polls;
 static idList<mouse_poll_t> mouse_polls;
 
@@ -301,151 +321,59 @@ static inline byte JoyToKey(int button) {
     return keymap[button];
 }
 
-static int joy_axis[16] = { 0 };
-static int joy_axis_prev[16] = { 0 };
 static int joy_mouse[2] = { 0 };
 static int joy_mouse_prev[2] = { 0 };
-static int joy_move[2] = { 0 };
-static int joy_move_prev[2] = { 0 };
 
-static int touch_pos[2] = { 0 };
-static int touch_pos_prev[2] = { 0 };
+static float touch_pos[2] = { 0 };
+static float touch_pos_prev[2] = { 0 };
 static bool touch_pressed = false;
 static bool touch_pressed_prev = false;
 
 // all the menus are now 4:3, so we got a different origin
 // 960x720 is the 4:3 resolution we get
 
-static constexpr int touch_w = 1280;
-static constexpr int touch_h = 720;
-static constexpr int menu_w = 960;
-static constexpr int menu_h = 720;
-static constexpr int touch_ox = (touch_w - menu_w) / 2;
-static constexpr int touch_oy = (touch_h - menu_h) / 2;
-
-// since we're operating on touch events, we have to track the mouse state manually
-// this is also reset in some places, eg in SetCursor
-
-int virt_mouse_x = touch_ox;
-int virt_mouse_y = touch_oy; 
+static int touch_w = 1280;
+static int touch_h = 720;
+static int menu_w = 960;
+static int menu_ox = (1280 - 960) / 2;
 
 extern idSession *session;
 extern idSessionLocal sessLocal;
 
-static inline void UpdateVirtualMousePosition(int dx, int dy) {
-	// only update cursor position in menus
-	if (!session || !sessLocal.GetActiveMenu())
-		return;
-	virt_mouse_x += dx;
-	virt_mouse_y += dy;
-	if (virt_mouse_x < 0) virt_mouse_x = 0;
-	else if (virt_mouse_x >= touch_w) virt_mouse_x = touch_w-1;
-	if (virt_mouse_y < 0) virt_mouse_y = 0;
-	else if (virt_mouse_y >= touch_h) virt_mouse_y = touch_h-1;
-}
-
-static inline void SetVirtualMousePosition(int x, int y) {
-	// only update cursor position in the menus
-	if (!session || !sessLocal.GetActiveMenu())
-		return;
-	virt_mouse_x = x;
-	virt_mouse_y = y;
-	if (virt_mouse_x < 0) virt_mouse_x = 0;
-	else if (virt_mouse_x >= touch_w) virt_mouse_x = touch_w-1;
-	if (virt_mouse_y < 0) virt_mouse_y = 0;
-	else if (virt_mouse_y >= touch_h) virt_mouse_y = touch_h-1;
-}
-
-static inline void JoyAxisMotion(Uint8 axis, Sint16 val) {
+static inline void JoyMouseMotion(Uint8 axis, Sint16 val) {
 	constexpr float mouse_modifier = 1.f / 2048.f;
 	constexpr int move_modifier = 256;
 	constexpr int deadzone = 32;
 
 	if (abs(val) < deadzone) val = 0;
 
-	if (axis == 2 || axis == 3) {
-		joy_mouse_prev[axis - 2] = joy_mouse[axis - 2];
-		joy_mouse[axis - 2] = val * mouse_modifier;
-	} else if (axis == 0 || axis == 1) {
-		joy_move_prev[axis] = joy_move[axis];
-		joy_move[axis] = val / move_modifier;
-	}
-
-	joy_axis_prev[axis] = joy_axis[axis];
-	joy_axis[axis] = val;
+	joy_mouse_prev[axis] = joy_mouse[axis];
+	joy_mouse[axis] = val * mouse_modifier;
 }
 
-static inline bool JoyGenerateMoveEvents(SDL_Event *ev, int axis, int val, int old) {
-	constexpr int move_threshold = 64;
-	static const struct {
-		SDL_Keycode sym;
-		SDL_Scancode scan;
-	} axis_map[][2] = {
-		{ { SDLK_a, SDL_SCANCODE_A }, { SDLK_d, SDL_SCANCODE_D }, },
-		{ { SDLK_w, SDL_SCANCODE_W }, { SDLK_s, SDL_SCANCODE_S }, },
-	};
 
-	bool key[2] = { val < -move_threshold, val > move_threshold };
-	bool key_prev[2] = { old < -move_threshold, old > move_threshold };
-
-	bool ret = false;
-
-	for (int i = 0; i < 2; ++i) {
-		if (key[i] != key_prev[i]) {
-			ev->type = key[i] ? SDL_KEYDOWN : SDL_KEYUP;
-			ev->key.type = ev->type;
-			ev->key.timestamp = Sys_Milliseconds();
-			ev->key.state = key[i] ? SDL_PRESSED : SDL_RELEASED;
-			ev->key.keysym.scancode = axis_map[axis][i].scan;
-			ev->key.keysym.sym = axis_map[axis][i].sym;
-			SDL_PeepEvents(ev, 1, SDL_ADDEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT);
-			ret = true;
-		}
-	}
-
-	return ret;
-}
-
-static inline bool JoyGenerateEvents(void) {
+static inline bool JoyGenerateMouseEvents(void) {
 	SDL_Event ev = { 0 };
-	bool ret = false;
 
 	if (joy_mouse[0] || joy_mouse[1]) {
 		ev.type = SDL_MOUSEMOTION;
 		ev.motion.xrel = joy_mouse[0];
 		ev.motion.yrel = joy_mouse[1];
-		UpdateVirtualMousePosition(joy_mouse[0], joy_mouse[1]);
 		SDL_PeepEvents(&ev, 1, SDL_ADDEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT);
-		ret = true;
+		return true;
 	}
 
-	if (JoyGenerateMoveEvents(&ev, 0, joy_move[0], joy_move_prev[0])) {
-		joy_move_prev[0] = joy_move[0];
-		ret = true;
-	}
-
-	if (JoyGenerateMoveEvents(&ev, 1, joy_move[1], joy_move_prev[1])) {
-		joy_move_prev[1] = joy_move[1];
-		ret = true;
-	}
-
-	return ret;
+	return false;
 }
 
 static inline void TouchMotion(float x, float y) {
 	// only update cursor position in menus
 	if (!session || !sessLocal.GetActiveMenu())
 		return;
-	// in switch-sdl2, touch position is always in tablet screen coordinates
-	int tx = x * touch_w;
-	int ty = y * touch_h;
-	// ignore touches outside of virtual 4:3 screen
-	if (tx < touch_ox || tx >= touch_ox + menu_w || ty < touch_oy || ty >= touch_oy + menu_h)
-		return;
 	touch_pos_prev[0] = touch_pos[0];
 	touch_pos_prev[1] = touch_pos[1];
-	touch_pos[0] = tx;
-	touch_pos[1] = ty;
+	touch_pos[0] = x * touch_w;
+	touch_pos[1] = y * touch_h;
 }
 
 static inline void TouchPress(bool pressed) {
@@ -454,16 +382,29 @@ static inline void TouchPress(bool pressed) {
 }
 
 static inline bool TouchGenerateEvents(void) {
+	// only update cursor position in menus
+	if (!session || !sessLocal.GetActiveMenu())
+		return false;
+
 	SDL_Event ev = { 0 };
 	bool ret = false;
 
 	if (touch_pos[0] != touch_pos_prev[0] || touch_pos[1] != touch_pos_prev[1]) {
-		// Sys_GetEvent only checks for relative motion, so we have to do this shit
-		ev.type = SDL_MOUSEMOTION;
-		ev.motion.xrel = touch_pos[0] - virt_mouse_x;
-		ev.motion.yrel = touch_pos[1] - virt_mouse_y;
-		SetVirtualMousePosition(touch_pos[0], touch_pos[1]);
-		SDL_PeepEvents(&ev, 1, SDL_ADDEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT);
+		// just set the current GUI's cursor
+		auto m = sessLocal.GetActiveMenu();
+		int mx = 0, my = 0;
+
+		// but wait, there's more!
+		// fullscreen UIs might be contained in a centered 4:3 window
+		// so we have to transform the position (taken from UserInterface.cpp)
+		if(r_scaleMenusTo43.GetBool())
+			mx = (touch_pos[0] - menu_ox) / (float)menu_w * VIRTUAL_WIDTH;
+		else
+			mx = touch_pos[0] / (float)touch_w * VIRTUAL_WIDTH;
+		my = touch_pos[1] / (float)touch_h * VIRTUAL_HEIGHT;
+
+		m->SetCursor(mx, my);
+
 		// prevent duplicate events until the next touch event
 		touch_pos_prev[0] = touch_pos[0];
 		touch_pos_prev[1] = touch_pos[1];
@@ -488,15 +429,6 @@ static inline bool TouchGenerateEvents(void) {
 	return ret;
 }
 
-// FIXME: this is really, really fucking bad but I can't init video for some reason
-// so we'll have to do with calling private SDL functions yet again
-extern "C" {
-	void SWITCH_InitTouch(void);
-	void SWITCH_PollTouch();
-	void SWITCH_PollKeyboard();
-	void SWITCH_PollMouse();
-}
-
 /*
 =================
 Sys_InitInput
@@ -505,14 +437,18 @@ Sys_InitInput
 void Sys_InitInput() {
 	kbd_polls.SetGranularity(64);
 	mouse_polls.SetGranularity(64);
+	joystick_polls.SetGranularity(64);
 
-	if (!SDL_WasInit(SDL_INIT_JOYSTICK)) {
+	if (!SDL_WasInit(SDL_INIT_JOYSTICK))
 		SDL_InitSubSystem(SDL_INIT_JOYSTICK);
-		SWITCH_InitTouch();
-	}
 
 	SDL_JoystickOpen(0);
 	SDL_JoystickOpen(1);
+
+	touch_w = glConfig.vidWidth;
+	touch_h = glConfig.vidHeight;
+	menu_w = (int)((double)touch_h / 3.0 * 4.0);
+	menu_ox = (touch_w - menu_w) / 2;
 
 	in_kbd.SetModified();
 }
@@ -525,6 +461,7 @@ Sys_ShutdownInput
 void Sys_ShutdownInput() {
 	kbd_polls.Clear();
 	mouse_polls.Clear();
+	joystick_polls.Clear();
 	if (SDL_WasInit(SDL_INIT_JOYSTICK))
 		SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
 }
@@ -726,10 +663,27 @@ sysEvent_t Sys_GetEvent() {
 
 			return res;
 
+		case SDL_JOYAXISMOTION:
+			if (ev.jaxis.axis == 0 || ev.jaxis.axis == 1)
+			{
+				// only send left stick motion to the event system, cause
+				// right stick emulates mouse
+				res.evType = SE_JOYSTICK_AXIS;
+				res.evValue = ev.jaxis.axis;
+				res.evValue2 = ev.jaxis.value / 256;
+				joystick_polls.Append(joystick_poll_t(res.evValue, res.evValue2));
+				return res;
+			}
+			else if (ev.jaxis.axis == 2 || ev.jaxis.axis == 3)
+			{
+				JoyMouseMotion(ev.jaxis.axis - 2, ev.jaxis.value);
+				continue;
+			}
+
 		case SDL_JOYBUTTONDOWN:
 		case SDL_JOYBUTTONUP:
 			key = JoyToKey(ev.jbutton.button);
-      if (!key) continue;
+			if (!key) continue;
 			res.evType = SE_KEY;
 			res.evValue = key;
 			res.evValue2 = ev.type == SDL_JOYBUTTONDOWN ? 1 : 0;
@@ -737,10 +691,6 @@ sysEvent_t Sys_GetEvent() {
 			if (key == K_BACKSPACE && ev.type == SDL_JOYBUTTONDOWN)
 				c = key;
 			return res;
-
-		case SDL_JOYAXISMOTION:
-			JoyAxisMotion(ev.jaxis.axis, ev.jaxis.value);
-			continue;
 
 		case SDL_TEXTINPUT:
 			if (ev.text.text[0]) {
@@ -867,6 +817,7 @@ void Sys_ClearEvents() {
 
 	kbd_polls.SetNum(0, false);
 	mouse_polls.SetNum(0, false);
+	joystick_polls.SetNum(0, false);
 }
 
 /*
@@ -880,12 +831,7 @@ void Sys_GenerateEvents() {
 	if (s)
 		PushConsoleEvent(s);
 
-	hidScanInput();
-	SWITCH_PollTouch();
-	SWITCH_PollKeyboard();
-	SWITCH_PollMouse();
-
-	JoyGenerateEvents();
+	JoyGenerateMouseEvents();
 	TouchGenerateEvents();
 
 	SDL_PumpEvents();
@@ -921,6 +867,38 @@ Sys_EndKeyboardInputEvents
 */
 void Sys_EndKeyboardInputEvents() {
 	kbd_polls.SetNum(0, false);
+}
+
+/*
+================
+Sys_PollJoystickInputEvents
+================
+*/
+int Sys_PollJoystickInputEvents() {
+	return joystick_polls.Num();
+}
+
+/*
+================
+Sys_ReturnJoystickInputEvent
+================
+*/
+int Sys_ReturnJoystickInputEvent(const int n, int &axis, int &value) {
+	if (n >= joystick_polls.Num())
+		return 0;
+
+	axis = joystick_polls[n].axis;
+	value = joystick_polls[n].value;
+	return 1;
+}
+
+/*
+================
+Sys_EndJoystickInputEvents
+================
+*/
+void Sys_EndJoystickInputEvents() {
+	joystick_polls.SetNum(0, false);
 }
 
 /*

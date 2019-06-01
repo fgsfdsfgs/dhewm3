@@ -96,9 +96,10 @@ bool GLimp_Init(glimpParms_t parms) {
 	assert(SDL_WasInit(SDL_INIT_VIDEO));
 
 	Uint32 flags = SDL_WINDOW_OPENGL;
-
+#ifndef __SWITCH__ // to allow upscaling, we don't enable fullscreen
 	if (parms.fullScreen)
 		flags |= SDL_WINDOW_FULLSCREEN;
+#endif
 
 	int colorbits = 24;
 	int depthbits = 24;
@@ -177,6 +178,12 @@ bool GLimp_Init(glimpParms_t parms) {
 
 		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, parms.multiSamples ? 1 : 0);
 		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, parms.multiSamples);
+
+#ifdef __SWITCH__
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+#endif
 
 #if SDL_VERSION_ATLEAST(2, 0, 0)
 		window = SDL_CreateWindow(ENGINE_VERSION,

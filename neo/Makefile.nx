@@ -48,7 +48,7 @@ BUILD		:=	build
 SOURCES		:=
 DATA		:=	data
 INCLUDES	:=	
-DEFINES		+=	-DCORE=ON -DSDL2=ON -DBASE=ON -DUSE_FILE32API
+DEFINES		+=	-DCORE=ON -DSDL2=ON -DBASE=ON -DUSE_FILE32API -DDEBUG
 EXEFS_SRC	:=	exefs_src
 #ROMFS	:=	romfs
 
@@ -81,7 +81,7 @@ CXXFLAGS	:= $(COMMON_CFLAGS) -fexceptions -frtti -Woverloaded-virtual -std=gnu++
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-LIBS	:= -lopenal-soft -lSDL2main -lSDL2 -lEGL -lglapi -ldrm_nouveau -lvorbisfile -lvorbis -logg \
+LIBS	:= -lopenal -lSDL2main -lSDL2 -lEGL -lglapi -ldrm_nouveau -lvorbisfile -lvorbis -logg \
 		-ljpeg -lcurl -lmbedtls -lmbedx509 -lmbedcrypto -lpthread -lz -lnx -lm -lstdc++
 
 #---------------------------------------------------------------------------------
@@ -318,7 +318,7 @@ SRC_SYS	:=\
 	sys/nx/nx_main.cpp \
 	sys/nx/main.cpp
 
-SRC_SYS_CORE	:= sys/glimp_egl.cpp
+SRC_SYS_CORE	:= sys/glimp.cpp
 
 SRC_GAME_BASE	:=\
 	game/AF.cpp \

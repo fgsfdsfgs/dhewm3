@@ -42,8 +42,6 @@ If you have questions concerning this license or the applicable additional terms
 
 #include <locale.h>
 
-static char path_argv[256];
-
 bool Sys_GetPath(sysPath_t type, idStr &path) {
 	path.Clear();
 
@@ -53,16 +51,12 @@ bool Sys_GetPath(sysPath_t type, idStr &path) {
 	case PATH_SAVE:
 		path = BUILD_DATADIR;
 		return true;
-
 	case PATH_EXE:
-		if (path_argv[0] != 0) {
-			path = path_argv;
-			return true;
-		}
-
-		return false;
+		path = ".";
+		return true;
 	}
-	return true;
+
+	return false;
 }
 
 /*
@@ -158,10 +152,6 @@ int main(int argc, char **argv) {
 	nxlinkStdio();
 #endif
 
-	if (SDL_Init(SDL_INIT_TIMER | SDL_INIT_EVENTS) < 0)
-		Sys_Error("Error while initializing SDL: %s", SDL_GetError());
-
-	strncpy( path_argv, "/switch/dhewm3", sizeof(path_argv)-1 );
 	common->Init( fake_argc, fake_argv );
 
 	NX_UpdateOverclock();

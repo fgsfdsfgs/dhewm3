@@ -90,6 +90,21 @@ struct mouse_poll_t {
 	}
 };
 
+struct joystick_poll_t
+{
+	int axis;
+	int value;
+
+	joystick_poll_t() {
+	}
+
+	joystick_poll_t(int a, int v) {
+		axis = a;
+		value = v;
+	}
+};
+
+static idList<joystick_poll_t> joystick_polls;
 static idList<kbd_poll_t> kbd_polls;
 static idList<mouse_poll_t> mouse_polls;
 
@@ -283,6 +298,7 @@ Sys_InitInput
 void Sys_InitInput() {
 	kbd_polls.SetGranularity(64);
 	mouse_polls.SetGranularity(64);
+	joystick_polls.SetGranularity(64);
 
 #if !SDL_VERSION_ATLEAST(2, 0, 0)
 	SDL_EnableUNICODE(1);
@@ -300,6 +316,7 @@ Sys_ShutdownInput
 void Sys_ShutdownInput() {
 	kbd_polls.Clear();
 	mouse_polls.Clear();
+	joystick_polls.Clear();
 }
 
 /*
@@ -684,6 +701,7 @@ void Sys_ClearEvents() {
 
 	kbd_polls.SetNum(0, false);
 	mouse_polls.SetNum(0, false);
+	joystick_polls.SetNum(0, false);
 }
 
 /*
@@ -730,6 +748,38 @@ Sys_EndKeyboardInputEvents
 */
 void Sys_EndKeyboardInputEvents() {
 	kbd_polls.SetNum(0, false);
+}
+
+/*
+================
+Sys_PollJoystickInputEvents
+================
+*/
+int Sys_PollJoystickInputEvents() {
+	return joystick_polls.Num();
+}
+
+/*
+================
+Sys_ReturnJoystickInputEvent
+================
+*/
+int Sys_PollJoystickInputEvent(const int n, int &axis, int &value) {
+	if (n >= joystick_polls.Num())
+		return 0;
+
+	axis = joystick_polls[n].axis;
+	value = joystick_polls[n].value;
+	return 1;
+}
+
+/*
+================
+Sys_EndJoystickInputEvents
+================
+*/
+void Sys_EndJoystickInputEvents() {
+	joystick_polls.SetNum(0, false);
 }
 
 /*

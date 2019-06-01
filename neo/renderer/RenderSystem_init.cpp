@@ -485,10 +485,15 @@ vidmode_t r_vidModes[] = {
 	{ "Mode 17: 2048x1152",		2048,	1152 },
 	{ "Mode 18: 2560x1600",		2560,	1600 },
 	{ "Mode 19: 3200x2400",		3200,	2400 },
-	{ "Mode 20: 3840x2160",		3840,   2160 },
-	{ "Mode 21: 4096x2304",		4096,   2304 },
-	{ "Mode 22: 2880x1800",		2880,   1800 },
-	{ "Mode 23: 2560x1440",		2560,   1440 },
+	{ "Mode 20: 3840x2160",		3840,	2160 },
+	{ "Mode 21: 4096x2304",		4096,	2304 },
+	{ "Mode 22: 2880x1800",		2880,	1800 },
+	{ "Mode 23: 2560x1440",		2560,	1440 },
+#ifdef __SWITCH__
+	// some additional modes for upscaling purposes
+	{ "Mode 24: 640x360",		640,	360 },
+	{ "Mode 25: 960x540",		960,	540 },
+#endif
 };
 // DG: made this an enum so even stupid compilers accept it as array length below
 enum {	s_numVidModes = sizeof( r_vidModes ) / sizeof( r_vidModes[0] ) };

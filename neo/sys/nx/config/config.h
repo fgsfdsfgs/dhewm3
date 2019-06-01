@@ -6,8 +6,8 @@
 
 #define BUILD_LIBRARY_SUFFIX	".nro"
 
-#define BUILD_LIBDIR			"/switch/dhewm3"
-#define BUILD_DATADIR			"/switch/dhewm3"
+#define BUILD_LIBDIR			"."
+#define BUILD_DATADIR			"."
 
 #define ID_ENABLE_CURL
 
